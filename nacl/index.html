@@ -1,0 +1,23 @@
+<script>
+function on_load() {
+  console.log('load');
+
+  var Stockfish = document.getElementById('stockfish');
+  Stockfish.postMessage('uci');
+  Stockfish.postMessage('go infinite');
+}
+
+function on_message(e) {
+  console.log(e.data);
+}
+</script>
+
+<div id="listener">
+  <script>
+    var listener = document.getElementById('listener');
+    listener.addEventListener('load', on_load, true);
+    listener.addEventListener('message', on_message, true);
+  </script>
+
+  <embed id="stockfish" width="0" height="0" src="stockfish.nmf" type="application/x-pnacl">
+</div>
