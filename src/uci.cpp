@@ -194,25 +194,15 @@ namespace {
 } // namespace
 
 
-/// UCI::loop() waits for a command from stdin, parses it and calls the appropriate
-/// function. Also intercepts EOF from stdin to ensure gracefully exiting if the
-/// GUI dies unexpectedly. When called with some command line arguments, e.g. to
-/// run 'bench', once the command is executed the function returns immediately.
-/// In addition to the UCI ones, also some additional debug commands are supported.
+void UCI::command(string cmd) {
+      static bool initialized = false;
+      static Position pos;
+      if (!initialized) {
+          pos.set(StartFEN, false, CHESS_VARIANT, &States->back(), Threads.main());
+          initialized = true;
+      }
 
-void UCI::loop(int argc, char* argv[]) {
-
-  Position pos;
-  string token, cmd;
-
-  pos.set(StartFEN, false, CHESS_VARIANT, &States->back(), Threads.main());
-
-  for (int i = 1; i < argc; ++i)
-      cmd += std::string(argv[i]) + " ";
-
-  do {
-      if (argc == 1 && !getline(cin, cmd)) // Block here waiting for input or EOF
-          cmd = "quit";
+      string token;
 
       istringstream is(cmd);
 
@@ -248,31 +238,9 @@ void UCI::loop(int argc, char* argv[]) {
       else if (token == "go")         go(pos, is);
       else if (token == "position")   position(pos, is);
       else if (token == "setoption")  setoption(is);
-
-      // Additional custom non-UCI commands, useful for debugging
-      else if (token == "flip")       pos.flip();
-      else if (token == "bench")      benchmark(pos, is);
-      else if (token == "d")          sync_cout << pos << sync_endl;
-      else if (token == "eval")       sync_cout << Eval::trace(pos) << sync_endl;
-      else if (token == "perft")
-      {
-          int depth;
-          stringstream ss;
-
-          is >> depth;
-          ss << Options["Hash"]    << " "
-             << Options["Threads"] << " " << depth << " current perft";
-
-          benchmark(pos, ss);
-      }
       else
           sync_cout << "Unknown command: " << cmd << sync_endl;
-
-  } while (token != "quit" && argc == 1); // Passed args have one-shot behaviour
-
-  Threads.main()->wait_for_search_finished();
 }
-
 
 /// UCI::value() converts a Value to a string suitable for use with the UCI
 /// protocol specification:
