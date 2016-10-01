@@ -9,6 +9,7 @@ PNACL_CXX = $(PNACL_TC_PATH)/bin/pnacl-clang++
 PNACL_FINALIZE = $(PNACL_TC_PATH)/bin/pnacl-finalize
 
 CXXFLAGS = -fno-exceptions -fno-rtti -O3 -I$(NACL_SDK_ROOT)/include -DIS_64BIT -DNDEBUG -DNO_PREFETCH -std=gnu++11
+CXXFLAGS += -DANTI -DATOMIC -DHORDE -DKOTH -DRACE -DTHREECHECK
 LDFLAGS = -L$(NACL_SDK_ROOT)/lib/pnacl/Release -O3 -lppapi_cpp -lppapi -lpthread
 
 stockfish.pexe: stockfish.bc
