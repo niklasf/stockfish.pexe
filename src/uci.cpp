@@ -224,17 +224,11 @@ void UCI::command(string cmd) {
       else if (token == "ponderhit")
           Search::Limits.ponder = 0; // Switch to normal search
 
-      else if (token == "uci")
-          sync_cout << "id name " << engine_info(true)
-                    << "\n"       << Options
-                    << "\nuciok"  << sync_endl;
-
       else if (token == "ucinewgame")
       {
           Search::clear();
           Time.availableNodes = 0;
       }
-      else if (token == "isready")    sync_cout << "readyok" << sync_endl;
       else if (token == "go")         go(pos, is);
       else if (token == "position")   position(pos, is);
       else if (token == "setoption")  setoption(is);
