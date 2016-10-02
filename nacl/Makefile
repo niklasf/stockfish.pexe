@@ -1,4 +1,4 @@
-OBJS = nacl.o benchmark.o bitbase.o bitboard.o endgame.o evaluate.o \
+OBJS = nacl.o bitbase.o bitboard.o endgame.o evaluate.o \
 	material.o misc.o movegen.o movepick.o pawns.o position.o psqt.o \
 	search.o thread.o timeman.o tt.o uci.o ucioption.o
 
