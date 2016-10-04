@@ -34,14 +34,23 @@ TranspositionTable TT; // Our global transposition table
 void TranspositionTable::resize(size_t mbSize) {
 
   size_t newClusterCount = size_t(1) << msb((mbSize * 1024 * 1024) / sizeof(Cluster));
+  const size_t minClusterCount = size_t(1) << msb((size_t(1) * 1024 * 1024) / sizeof(Cluster));
 
   if (newClusterCount == clusterCount)
       return;
 
-  clusterCount = newClusterCount;
+  void *newMem = nullptr;
 
-  free(mem);
-  mem = calloc(clusterCount * sizeof(Cluster) + CacheLineSize - 1, 1);
+  while (newClusterCount >= minClusterCount) {
+      newMem = realloc(mem, newClusterCount * sizeof(Cluster) + CacheLineSize - 1);
+      if (newMem) break;
+
+      std::cerr << "Failed to allocate " << newClusterCount << " tt clusters." << std::endl;
+      newClusterCount >>= 1;
+  }
+
+  mem = newMem;
+  clusterCount = newClusterCount;
 
   if (!mem)
   {
@@ -49,6 +58,8 @@ void TranspositionTable::resize(size_t mbSize) {
                 << "MB for transposition table." << std::endl;
       exit(EXIT_FAILURE);
   }
+
+  memset(mem, 0, clusterCount * sizeof(Cluster) + CacheLineSize - 1);
 
   table = (Cluster*)((uintptr_t(mem) + CacheLineSize - 1) & ~(CacheLineSize - 1));
 }

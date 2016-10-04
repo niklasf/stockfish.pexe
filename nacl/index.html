@@ -2,9 +2,8 @@
 function on_load() {
   console.log('load');
 
-  var Stockfish = document.getElementById('stockfish');
-  Stockfish.postMessage('uci');
-  Stockfish.postMessage('go infinite');
+  window.Stockfish = document.getElementById('stockfish');
+  window.Stockfish.postMessage('isready');
 }
 
 function on_message(e) {
