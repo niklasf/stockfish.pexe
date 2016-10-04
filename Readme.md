@@ -25,6 +25,7 @@ Changes to original Stockfish
 * Replace ``src/main.cpp`` with ``src/nacl.cpp``.
 * Turn ``UCI::loop`` into ``UCI::command``.
 * Remove Syzygy tablebases.
+* Recover from (all but minimum) transposition table allocation failures.
 
 Acknowledgements
 ----------------
