@@ -8,8 +8,9 @@ PNACL_TC_PATH = $(NACL_SDK_ROOT)/toolchain/linux_pnacl
 PNACL_CXX = $(PNACL_TC_PATH)/bin/pnacl-clang++
 PNACL_FINALIZE = $(PNACL_TC_PATH)/bin/pnacl-finalize
 
-CXXFLAGS = -fno-exceptions -fno-rtti -O3 -I$(NACL_SDK_ROOT)/include \
-	-DIS_64BIT -DNDEBUG -DNO_PREFETCH -std=gnu++11 \
+CXXFLAGS = -O3 -std=gnu++11 -fno-exceptions -fno-rtti \
+	-I$(NACL_SDK_ROOT)/include \
+	-DNDEBUG -DIS_64BIT -DUSE_POPCNT -DNO_PREFETCH \
 	-DANTI -DATOMIC -DHORDE -DKOTH -DRACE -DTHREECHECK
 
 LDFLAGS = -L$(NACL_SDK_ROOT)/lib/pnacl/Release -O3 -lppapi_cpp -lppapi -lpthread
