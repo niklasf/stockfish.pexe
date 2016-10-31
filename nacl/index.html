@@ -3,7 +3,7 @@ function on_load() {
   console.log('load');
 
   window.Stockfish = document.getElementById('stockfish');
-  window.Stockfish.postMessage('isready');
+  window.Stockfish.postMessage('uci');
 }
 
 function on_message(e) {
