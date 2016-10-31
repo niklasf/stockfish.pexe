@@ -1,3 +1,4 @@
 src/stockfish
 src/.depend
+nacl/stockfish.bc
 *.o
