@@ -99,7 +99,7 @@ namespace {
   560,
 #endif
 #ifdef CRAZYHOUSE
-  150,
+  125,
 #endif
 #ifdef HORDE
   150,
@@ -646,9 +646,13 @@ namespace {
     if (thisThread->resetCalls.load(std::memory_order_relaxed))
     {
         thisThread->resetCalls = false;
-        thisThread->callsCnt = 0;
+        // At low node count increase the checking rate to about 0.1% of nodes
+        // otherwise use a default value.
+        thisThread->callsCnt = Limits.nodes ? std::min((int64_t)4096, Limits.nodes / 1024)
+                                            : 4096;
     }
-    if (++thisThread->callsCnt > 4096)
+
+    if (--thisThread->callsCnt <= 0)
     {
         for (Thread* th : Threads)
             th->resetCalls = true;
@@ -801,7 +805,7 @@ namespace {
     {
         eval = ss->staticEval =
         (ss-1)->currentMove != MOVE_NULL ? evaluate(pos)
-                                         : -(ss-1)->staticEval + 2 * Eval::Tempo;
+                                         : -(ss-1)->staticEval + 2 * Eval::Tempo[pos.variant()];
 
         tte->save(posKey, VALUE_NONE, BOUND_NONE, DEPTH_NONE, MOVE_NONE,
                   ss->staticEval, TT.generation());
@@ -1063,10 +1067,15 @@ moves_loop: // When in check search starts from here
                   && !pos.see_ge(move, Value(-35 * lmrDepth * lmrDepth)))
                   continue;
           }
-          else if (   depth < 7 * ONE_PLY
-                   && !extension
-                   && !pos.see_ge(move, Value(-35 * depth / ONE_PLY * depth / ONE_PLY)))
+          else if (depth < 7 * ONE_PLY && !extension)
+          {
+              Value v = Value(-35 * depth / ONE_PLY * depth / ONE_PLY);
+              if (ss->staticEval != VALUE_NONE)
+                  v += ss->staticEval - alpha - 200;
+
+              if (!pos.see_ge(move, v))
                   continue;
+          }
       }
 
       // Speculative prefetch as early as possible
@@ -1456,7 +1465,7 @@ moves_loop: // When in check search starts from here
         else
             ss->staticEval = bestValue =
             (ss-1)->currentMove != MOVE_NULL ? evaluate(pos)
-                                             : -(ss-1)->staticEval + 2 * Eval::Tempo;
+                                             : -(ss-1)->staticEval + 2 * Eval::Tempo[pos.variant()];
 
         // Stand pat. Return immediately if static value is at least beta
         if (bestValue >= beta)

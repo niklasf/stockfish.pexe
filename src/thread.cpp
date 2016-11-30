@@ -95,6 +95,8 @@ void Thread::start_searching(bool resume) {
 
 void Thread::idle_loop() {
 
+  WinProcGroup::bindThisThread(idx);
+
   while (!exit)
   {
       std::unique_lock<Mutex> lk(mutex);
