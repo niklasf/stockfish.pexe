@@ -2,7 +2,7 @@
   "program": {
     "portable": {
       "pnacl-translate": {
-        "url": "stockfish.pexe?v=7"
+        "url": "stockfish.pexe?v=8"
       }
     }
   }
