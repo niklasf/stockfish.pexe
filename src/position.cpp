@@ -242,7 +242,8 @@ Position& Position::set(const string& fenStr, bool isChess960, Variant v, StateI
   std::memset(si, 0, sizeof(StateInfo));
   std::fill_n(&pieceList[0][0], sizeof(pieceList) / sizeof(Square), SQ_NONE);
   st = si;
-  var = v;
+  subvar = v;
+  var = main_variant(v);
 
   ss >> std::noskipws;
 
@@ -268,7 +269,11 @@ Position& Position::set(const string& fenStr, bool isChess960, Variant v, StateI
       }
 #ifdef CRAZYHOUSE
       // Set flag for promoted pieces
+#ifdef LOOP
+      else if (is_house() && !is_loop() && token == '~')
+#else
       else if (is_house() && token == '~')
+#endif
           promotedPieces |= sq - Square(1);
       // Stop before pieces in hand
       else if (is_house() && token == '[')
@@ -883,32 +888,14 @@ bool Position::pseudo_legal(const Move m) const {
   Square to = to_sq(m);
   Piece pc = moved_piece(m);
 
-#ifdef KOTH
   // If the game is already won or lost, further moves are illegal
-  if (is_koth() && (is_koth_win() || is_koth_loss()))
+  if (is_variant_end())
       return false;
-#endif
-#ifdef RACE
-  // If the game is already won or lost, further moves are illegal
-  if (is_race() && (is_race_draw() || is_race_win() || is_race_loss()))
-      return false;
-#endif
-#ifdef HORDE
-  // If the game is already won or lost, further moves are illegal
-  if (is_horde() && is_horde_loss())
-      return false;
-#endif
-#ifdef ANTI
-  // If the game is already won or lost, further moves are illegal
-  if (is_anti() && (is_anti_win() || is_anti_loss()))
-      return false;
-#endif
+
 #ifdef ATOMIC
   if (is_atomic())
   {
       // If the game is already won or lost, further moves are illegal
-      if (is_atomic_win() || is_atomic_loss())
-          return false;
       if (pc == NO_PIECE || color_of(pc) != us)
           return false;
       if (capture(m))
@@ -939,6 +926,10 @@ bool Position::pseudo_legal(const Move m) const {
 #endif
 #ifdef ANTI
   if (is_anti() && !capture(m) && can_capture())
+      return false;
+#endif
+#ifdef LOSERS
+  if (is_losers() && !capture(m) && can_capture_losers())
       return false;
 #endif
 
@@ -1290,8 +1281,8 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 #ifdef CRAZYHOUSE
   if (type_of(m) == DROP)
   {
-      k ^= Zobrist::psq[pc][to] ^ Zobrist::inHand[pc][pieceCountInHand[color_of(pc)][type_of(pc)]]
-          ^ Zobrist::inHand[pc][pieceCountInHand[color_of(pc)][type_of(pc)] + 1];
+      k ^= Zobrist::psq[pc][to] ^ Zobrist::inHand[pc][pieceCountInHand[color_of(pc)][type_of(pc)] - 1]
+          ^ Zobrist::inHand[pc][pieceCountInHand[color_of(pc)][type_of(pc)]];
       if (type_of(pc) != PAWN)
           st->nonPawnMaterial[us] += PieceValue[CHESS_VARIANT][MG][type_of(pc)];
   }
@@ -1378,7 +1369,11 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
           remove_piece(pc, to);
           put_piece(promotion, to);
 #ifdef CRAZYHOUSE
+#ifdef LOOP
+          if (is_house() && !is_loop())
+#else
           if (is_house())
+#endif
               promotedPieces = promotedPieces | to;
 #endif
 
@@ -1700,6 +1695,27 @@ Key Position::key_after(Move m) const {
   return k ^ Zobrist::psq[pc][to] ^ Zobrist::psq[pc][from];
 }
 
+#ifdef ATOMIC
+template<>
+Value Position::see<ATOMIC_VARIANT>(Move m) const {
+  assert(is_ok(m));
+
+  Square from = from_sq(m), to = to_sq(m);
+  Color stm = color_of(piece_on(from));
+
+  Value blast_eval = VALUE_ZERO;
+  Bitboard blast = attacks_from<KING>(to) & (pieces() ^ pieces(PAWN)) & ~SquareBB[from];
+  if (blast & pieces(~stm,KING))
+      return VALUE_MATE;
+  for (Color c = WHITE; c <= BLACK; ++c)
+      for (PieceType pt = KNIGHT; pt <= QUEEN; ++pt)
+          if (c == stm)
+              blast_eval -= popcount(blast & pieces(c,pt)) * PieceValue[var][MG][pt];
+          else
+              blast_eval += popcount(blast & pieces(c,pt)) * PieceValue[var][MG][pt];
+  return blast_eval + PieceValue[var][MG][piece_on(to_sq(m))] - PieceValue[var][MG][moved_piece(m)];
+}
+#endif
 
 /// Position::see_ge (Static Exchange Evaluation Greater or Equal) tests if the
 /// SEE value of move is greater or equal to the given value. We'll use an
@@ -1736,19 +1752,7 @@ bool Position::see_ge(Move m, Value v) const {
   {
       stm = color_of(piece_on(from));
       if (capture(m))
-      {
-          Value blast_eval = VALUE_ZERO;
-          Bitboard blast = attacks_from<KING>(to) & (pieces() ^ pieces(PAWN)) & ~SquareBB[from];
-          if (blast & pieces(~stm,KING))
-              return true;
-          for (Color c = WHITE; c <= BLACK; ++c)
-              for (PieceType pt = KNIGHT; pt <= QUEEN; ++pt)
-                  if (c == stm)
-                      blast_eval -= popcount(blast & pieces(c,pt)) * PieceValue[var][MG][pt];
-                  else
-                      blast_eval += popcount(blast & pieces(c,pt)) * PieceValue[var][MG][pt];
-          return blast_eval + PieceValue[var][MG][piece_on(to_sq(m))] - PieceValue[var][MG][moved_piece(m)] >= v;
-      }
+          return see<ATOMIC_VARIANT>(m) >= v;
       else
       {
           if (v > VALUE_ZERO)
@@ -1865,29 +1869,34 @@ bool Position::see_ge(Move m, Value v) const {
 /// Position::is_draw() tests whether the position is drawn by 50-move rule
 /// or by repetition. It does not detect stalemates.
 
-bool Position::is_draw() const {
+bool Position::is_draw(int ply) const {
 
   if (st->rule50 > 99 && (!checkers() || MoveList<LEGAL>(*this).size()))
       return true;
 
 #ifdef CRAZYHOUSE
-  int rep = 1, e = is_house() ? st->pliesFromNull : std::min(st->rule50, st->pliesFromNull);
+  int end = is_house() ? st->pliesFromNull : std::min(st->rule50, st->pliesFromNull);
 #else
-  int rep = 1, e = std::min(st->rule50, st->pliesFromNull);
+  int end = std::min(st->rule50, st->pliesFromNull);
 #endif
 
-  if (e < 4)
+  if (end < 4)
     return false;
 
   StateInfo* stp = st->previous->previous;
+  int cnt = 0;
 
-  do {
+  for (int i = 4; i <= end; i += 2)
+  {
       stp = stp->previous->previous;
 
-      if (stp->key == st->key && (++rep >= 2 + (gamePly - e < thisThread->rootPly)))
-          return true; // Draw at first repetition in search, and second repetition in game tree.
-
-  } while ((e -= 2) >= 4);
+      // At root position ply is 1, so return a draw score if a position
+      // repeats once earlier but after or at the root, or repeats twice
+      // strictly before the root.
+      if (   stp->key == st->key
+          && ++cnt + (ply - i > 0) == 2)
+          return true;
+  }
 
   return false;
 }
