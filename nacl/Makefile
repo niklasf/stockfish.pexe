@@ -12,7 +12,8 @@ CXXFLAGS = -O3 -std=gnu++11 -fno-exceptions -fno-rtti \
 	-I$(NACL_SDK_ROOT)/include \
 	-mllvm -inline-threshold=500 \
 	-DNDEBUG -DIS_64BIT -DUSE_POPCNT -DNO_PREFETCH \
-	-DANTI -DATOMIC -DCRAZYHOUSE -DHORDE -DKOTH -DRACE -DTHREECHECK
+	-DANTI -DATOMIC -DCRAZYHOUSE -DHORDE -DKOTH -DRACE -DTHREECHECK \
+	-DUSELONGESTPV
 
 LDFLAGS = -L$(NACL_SDK_ROOT)/lib/pnacl/Release -O3 -lppapi_cpp -lppapi -lpthread
 
