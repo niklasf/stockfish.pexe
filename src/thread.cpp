@@ -2,7 +2,7 @@
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
   Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
-  Copyright (C) 2015-2016 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
+  Copyright (C) 2015-2017 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -35,8 +35,7 @@ Thread::Thread() {
 
   resetCalls = exit = false;
   maxPly = callsCnt = 0;
-  history.clear();
-  counterMoves.clear();
+  tbHits = 0;
   idx = Threads.size(); // Start from 0
 
   std::unique_lock<Mutex> lk(mutex);
@@ -94,6 +93,8 @@ void Thread::start_searching(bool resume) {
 
 void Thread::idle_loop() {
 
+  WinProcGroup::bindThisThread(idx);
+
   while (!exit)
   {
       std::unique_lock<Mutex> lk(mutex);
@@ -121,7 +122,7 @@ void Thread::idle_loop() {
 
 void ThreadPool::init() {
 
-  push_back(new MainThread);
+  push_back(new MainThread());
   read_uci_options();
 }
 
@@ -148,7 +149,7 @@ void ThreadPool::read_uci_options() {
   assert(requested > 0);
 
   while (size() < requested)
-      push_back(new Thread);
+      push_back(new Thread());
 
   while (size() > requested)
       delete back(), pop_back();
@@ -157,12 +158,23 @@ void ThreadPool::read_uci_options() {
 
 /// ThreadPool::nodes_searched() returns the number of nodes searched
 
-int64_t ThreadPool::nodes_searched() {
+uint64_t ThreadPool::nodes_searched() const {
 
-  int64_t nodes = 0;
+  uint64_t nodes = 0;
   for (Thread* th : *this)
       nodes += th->rootPos.nodes_searched();
   return nodes;
+}
+
+
+/// ThreadPool::tb_hits() returns the number of TB hits
+
+uint64_t ThreadPool::tb_hits() const {
+
+  uint64_t hits = 0;
+  for (Thread* th : *this)
+      hits += th->tbHits;
+  return hits;
 }
 
 
@@ -195,6 +207,7 @@ void ThreadPool::start_thinking(Position& pos, StateListPtr& states,
   for (Thread* th : Threads)
   {
       th->maxPly = 0;
+      th->tbHits = 0;
       th->rootDepth = DEPTH_ZERO;
       th->rootMoves = rootMoves;
       th->rootPos.set(pos.fen(), pos.is_chess960(), &setupStates->back(), th);

@@ -2,7 +2,7 @@
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
   Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
-  Copyright (C) 2015-2016 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
+  Copyright (C) 2015-2017 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -111,11 +111,11 @@ MovePicker::MovePicker(const Position& p, Move ttm, Value th)
 
   stage = PROBCUT;
 
-  // In ProbCut we generate captures with SEE higher than the given threshold
+  // In ProbCut we generate captures with SEE higher than or equal to the given threshold
   ttMove =   ttm
           && pos.pseudo_legal(ttm)
           && pos.capture(ttm)
-          && pos.see(ttm) > threshold ? ttm : MOVE_NONE;
+          && pos.see_ge(ttm, threshold)? ttm : MOVE_NONE;
 
   stage += (ttMove == MOVE_NONE);
 }
@@ -141,41 +141,32 @@ template<>
 void MovePicker::score<QUIETS>() {
 
   const HistoryStats& history = pos.this_thread()->history;
-  const FromToStats& fromTo = pos.this_thread()->fromTo;
 
-  const CounterMoveStats* cm = (ss-1)->counterMoves;
-  const CounterMoveStats* fm = (ss-2)->counterMoves;
-  const CounterMoveStats* f2 = (ss-4)->counterMoves;
+  const CounterMoveStats* cmh = (ss-1)->counterMoves;
+  const CounterMoveStats* fmh = (ss-2)->counterMoves;
+  const CounterMoveStats* fmh2 = (ss-4)->counterMoves;
 
   Color c = pos.side_to_move();
 
   for (auto& m : *this)
-      m.value =      history[pos.moved_piece(m)][to_sq(m)]
-               + (cm ? (*cm)[pos.moved_piece(m)][to_sq(m)] : VALUE_ZERO)
-               + (fm ? (*fm)[pos.moved_piece(m)][to_sq(m)] : VALUE_ZERO)
-               + (f2 ? (*f2)[pos.moved_piece(m)][to_sq(m)] : VALUE_ZERO)
-               + fromTo.get(c, m);
+      m.value =  (cmh  ?  (*cmh)[pos.moved_piece(m)][to_sq(m)] : VALUE_ZERO)
+               + (fmh  ?  (*fmh)[pos.moved_piece(m)][to_sq(m)] : VALUE_ZERO)
+               + (fmh2 ? (*fmh2)[pos.moved_piece(m)][to_sq(m)] : VALUE_ZERO)
+               + history.get(c, m);
 }
 
 template<>
 void MovePicker::score<EVASIONS>() {
-  // Try winning and equal captures ordered by MVV/LVA, then non-captures ordered
-  // by history value, then bad captures and quiet moves with a negative SEE ordered
-  // by SEE value.
+  // Try captures ordered by MVV/LVA, then non-captures ordered by stats heuristics
   const HistoryStats& history = pos.this_thread()->history;
-  const FromToStats& fromTo = pos.this_thread()->fromTo;
   Color c = pos.side_to_move();
-  Value see;
 
   for (auto& m : *this)
-      if ((see = pos.see_sign(m)) < VALUE_ZERO)
-          m.value = see - HistoryStats::Max; // At the bottom
-
-      else if (pos.capture(m))
+      if (pos.capture(m))
           m.value =  PieceValue[MG][pos.piece_on(to_sq(m))]
                    - Value(type_of(pos.moved_piece(m))) + HistoryStats::Max;
       else
-          m.value = history[pos.moved_piece(m)][to_sq(m)] + fromTo.get(c, m);
+          m.value = history.get(c, m);
 }
 
 
@@ -207,7 +198,7 @@ Move MovePicker::next_move() {
           move = pick_best(cur++, endMoves);
           if (move != ttMove)
           {
-              if (pos.see_sign(move) >= VALUE_ZERO)
+              if (pos.see_ge(move, VALUE_ZERO))
                   return move;
 
               // Losing capture, move it to the beginning of the array
@@ -277,8 +268,7 @@ Move MovePicker::next_move() {
   case EVASIONS_INIT:
       cur = moves;
       endMoves = generate<EVASIONS>(pos, cur);
-      if (endMoves - cur - (ttMove != MOVE_NONE) > 1)
-          score<EVASIONS>();
+      score<EVASIONS>();
       ++stage;
 
   case ALL_EVASIONS:
@@ -301,7 +291,7 @@ Move MovePicker::next_move() {
       {
           move = pick_best(cur++, endMoves);
           if (   move != ttMove
-              && pos.see(move) > threshold)
+              && pos.see_ge(move, threshold))
               return move;
       }
       break;

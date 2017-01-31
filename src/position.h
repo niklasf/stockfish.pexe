@@ -2,7 +2,7 @@
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
   Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
-  Copyright (C) 2015-2016 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
+  Copyright (C) 2015-2017 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -76,6 +76,7 @@ public:
 
   // FEN string input/output
   Position& set(const std::string& fenStr, bool isChess960, StateInfo* si, Thread* th);
+  Position& set(const std::string& code, Color c, StateInfo* si);
   const std::string fen() const;
 
   // Position representation
@@ -127,14 +128,14 @@ public:
   bool opposite_bishops() const;
 
   // Doing and undoing moves
-  void do_move(Move m, StateInfo& st, bool givesCheck);
+  void do_move(Move m, StateInfo& newSt);
+  void do_move(Move m, StateInfo& newSt, bool givesCheck);
   void undo_move(Move m);
-  void do_null_move(StateInfo& st);
+  void do_null_move(StateInfo& newSt);
   void undo_null_move();
 
   // Static Exchange Evaluation
-  Value see(Move m) const;
-  Value see_sign(Move m) const;
+  bool see_ge(Move m, Value value) const;
 
   // Accessing hash keys
   Key key() const;
@@ -149,8 +150,7 @@ public:
   bool is_chess960() const;
   Thread* this_thread() const;
   uint64_t nodes_searched() const;
-  void set_nodes_searched(uint64_t n);
-  bool is_draw() const;
+  bool is_draw(int ply) const;
   int rule50_count() const;
   Score psq_score() const;
   Value non_pawn_material(Color c) const;
@@ -342,10 +342,6 @@ inline uint64_t Position::nodes_searched() const {
   return nodes;
 }
 
-inline void Position::set_nodes_searched(uint64_t n) {
-  nodes = n;
-}
-
 inline bool Position::opposite_bishops() const {
   return   pieceCount[W_BISHOP] == 1
         && pieceCount[B_BISHOP] == 1
@@ -415,6 +411,10 @@ inline void Position::move_piece(Piece pc, Square from, Square to) {
   board[to] = pc;
   index[to] = index[from];
   pieceList[pc][index[to]] = to;
+}
+
+inline void Position::do_move(Move m, StateInfo& newSt) {
+  do_move(m, newSt, gives_check(m));
 }
 
 #endif // #ifndef POSITION_H_INCLUDED
