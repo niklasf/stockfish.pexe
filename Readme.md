@@ -19,6 +19,13 @@ Building
 2. ``cd nacl``
 3. ``make``
 
+Running
+-------
+
+- Start an HTTP server, for instance ``http-server ~/stockfish.pexe/nacl``
+- Browse http://127.0.0.1:8080/ in chrome
+- Open the dev tools console and execute ``run_test()``
+
 Changes to original Stockfish
 -----------------------------
 
