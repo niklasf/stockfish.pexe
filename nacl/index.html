@@ -9,6 +9,20 @@ function on_load() {
 function on_message(e) {
   console.log(e.data);
 }
+
+function run_test() {
+  var messages = [
+    'setoption name Threads value 5',
+    'setoption name Hash value 16',
+    'setoption name MultiPV value 4',
+    'position fen 8/8/1p3pk1/2b2RPp/4Pq1K/2Q3PP/p7/8 w - - 2 42 moves',
+    'go depth 99'
+  ];
+  messages.forEach(function(msg) {
+    console.log('> ' + msg);
+    window.Stockfish.postMessage(msg);
+  });
+}
 </script>
 
 <div id="listener">
