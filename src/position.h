@@ -2,7 +2,7 @@
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
   Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
-  Copyright (C) 2015-2016 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
+  Copyright (C) 2015-2017 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -151,7 +151,7 @@ public:
 
   // Static Exchange Evaluation
 #ifdef ATOMIC
-  template<Variant v>
+  template<Variant V>
   Value see(Move m) const;
 #endif
   bool see_ge(Move m, Value value) const;
@@ -191,6 +191,9 @@ public:
   bool is_promoted(Square s) const;
   void drop_piece(Piece pc, Square s);
   void undrop_piece(Piece pc, Square s);
+#endif
+#ifdef BUGHOUSE
+  bool is_bughouse() const;
 #endif
 #ifdef LOOP
   bool is_loop() const;
@@ -353,7 +356,7 @@ template<PieceType Pt> inline Square Position::square(Color c) const {
 #endif
 #ifdef ANTI
   // There may be zero, one, or multiple kings
-  if (is_anti() && Pt == KING)
+  if (is_anti() && pieceCount[make_piece(c, Pt)] == 0)
       return SQ_NONE;
 #endif
   assert(pieceCount[make_piece(c, Pt)] == 1);
@@ -641,6 +644,12 @@ inline bool Position::is_promoted(Square s) const {
 }
 #endif
 
+#ifdef BUGHOUSE
+inline bool Position::is_bughouse() const {
+  return subvar == BUGHOUSE_VARIANT;
+}
+#endif
+
 #ifdef LOOP
 inline bool Position::is_loop() const {
   return subvar == LOOP_VARIANT;
@@ -832,19 +841,19 @@ inline Value Position::checkmate_value(int ply) const {
   return mated_in(ply);
 }
 
-inline Value Position::stalemate_value(int ply, Value draw_value) const {
+inline Value Position::stalemate_value(int ply, Value drawValue) const {
 #ifdef ANTI
   if (is_anti())
   {
 #ifdef SUICIDE
       if (is_suicide())
       {
-          int balance = popcount(pieces(sideToMove)) - popcount(pieces(~sideToMove));
+          int balance = pieceCount[make_piece(sideToMove, ALL_PIECES)] - pieceCount[make_piece(~sideToMove, ALL_PIECES)];
           if (balance > 0)
               return mated_in(ply);
           if (balance < 0)
               return mate_in(ply);
-          return draw_value;
+          return drawValue;
       }
 #endif
       return mate_in(ply);
@@ -854,7 +863,7 @@ inline Value Position::stalemate_value(int ply, Value draw_value) const {
   if (is_losers())
       return mate_in(ply);
 #endif
-  return draw_value;
+  return drawValue;
 }
 
 inline bool Position::capture_or_promotion(Move m) const {
