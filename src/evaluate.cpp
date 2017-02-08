@@ -495,7 +495,7 @@ namespace {
     S( 7,  0),
 #endif
 #ifdef THREECHECK
-    S(15,  0),
+    S(15,  10),
 #endif
   };
   const Score PawnlessFlank       = S(20, 80);
@@ -619,14 +619,6 @@ namespace {
             ei.kingAttackersWeight[Us] += KingAttackWeights[Pt];
             ei.kingAdjacentZoneAttacksCount[Us] += popcount(b & ei.attackedBy[Them][KING]);
         }
-
-#ifdef ANTI
-        if (pos.is_anti()) {} else
-#endif
-        if (Pt == QUEEN)
-            b &= ~(  ei.attackedBy[Them][KNIGHT]
-                   | ei.attackedBy[Them][BISHOP]
-                   | ei.attackedBy[Them][ROOK]);
 
         int mob = popcount(b & ei.mobilityArea[Us]);
 #ifdef ANTI
@@ -779,6 +771,12 @@ namespace {
     if (ei.kingAttackersCount[Them])
     {
         // Find the attacked squares which are defended only by our king...
+#ifdef ATOMIC
+        if (pos.is_atomic())
+            undefended =   ei.attackedBy[Them][ALL_PIECES]
+                        &  ei.attackedBy[Us][KING];
+        else
+#endif
         undefended =   ei.attackedBy[Them][ALL_PIECES]
                     &  ei.attackedBy[Us][KING]
                     & ~ei.attackedBy2[Us];
@@ -805,7 +803,8 @@ namespace {
         Bitboard h = 0;
 
 #ifdef CRAZYHOUSE
-        if (pos.is_house()) {
+        if (pos.is_house())
+        {
             for (PieceType pt = PAWN; pt <= QUEEN; ++pt)
                 kingDanger += KingDangerInHand[pt] * pos.count_in_hand(Them, pt);
             h = pos.count_in_hand(Them, QUEEN) ? undefended & ~pos.pieces() : 0;
@@ -1416,8 +1415,7 @@ namespace {
 #ifdef ATOMIC
     if (pos.is_atomic()) {} else
 #endif
-    if (    ei.me->game_phase() < PHASE_MIDGAME
-        && (sf == SCALE_FACTOR_NORMAL || sf == SCALE_FACTOR_ONEPAWN))
+    if (sf == SCALE_FACTOR_NORMAL || sf == SCALE_FACTOR_ONEPAWN)
     {
         if (pos.opposite_bishops())
         {
@@ -1425,19 +1423,18 @@ namespace {
             // is almost a draw, in case of KBP vs KB, it is even more a draw.
             if (   pos.non_pawn_material(WHITE) == BishopValueMg
                 && pos.non_pawn_material(BLACK) == BishopValueMg)
-                sf = more_than_one(pos.pieces(PAWN)) ? ScaleFactor(31) : ScaleFactor(9);
+                return more_than_one(pos.pieces(PAWN)) ? ScaleFactor(31) : ScaleFactor(9);
 
             // Endgame with opposite-colored bishops, but also other pieces. Still
             // a bit drawish, but not as drawish as with only the two bishops.
-            else
-                sf = ScaleFactor(46);
+            return ScaleFactor(46);
         }
         // Endings where weaker side can place his king in front of the opponent's
         // pawns are drawish.
         else if (    abs(eg) <= BishopValueEg
                  &&  pos.count<PAWN>(strongSide) <= 2
                  && !pos.pawn_passed(~strongSide, pos.square<KING>(~strongSide)))
-            sf = ScaleFactor(37 + 7 * pos.count<PAWN>(strongSide));
+            return ScaleFactor(37 + 7 * pos.count<PAWN>(strongSide));
     }
 #ifdef HORDE
     if (   pos.is_horde()

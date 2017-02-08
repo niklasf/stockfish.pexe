@@ -297,9 +297,9 @@ enum Value : int {
 #ifdef ANTI
   TempoMgAnti       =  0,    TempoEgAnti       =  0,
   PawnValueMgAnti   =  137,  PawnValueEgAnti   =  360,
-  KnightValueMgAnti =  130,  KnightValueEgAnti =  41,
-  BishopValueMgAnti =  322,  BishopValueEgAnti =  64,
-  RookValueMgAnti   =  496,  RookValueEgAnti   = -62,
+  KnightValueMgAnti =  130,  KnightValueEgAnti = -41,
+  BishopValueMgAnti =  322,  BishopValueEgAnti = -64,
+  RookValueMgAnti   =  496,  RookValueEgAnti   = -82,
   QueenValueMgAnti  =  187,  QueenValueEgAnti  =  318,
   KingValueMgAnti   =  20,   KingValueEgAnti   = -130,
 #endif
@@ -321,12 +321,12 @@ enum Value : int {
 #endif
 #ifdef HORDE
   TempoMgHorde       = 0,     TempoEgHorde       = 0,
-  PawnValueMgHorde   = 370,   PawnValueEgHorde   = 427,
-  KnightValueMgHorde = 708,   KnightValueEgHorde = 851,
-  BishopValueMgHorde = 736,   BishopValueEgHorde = 859,
-  RookValueMgHorde   = 1341,  RookValueEgHorde   = 1175,
-  QueenValueMgHorde  = 2777,  QueenValueEgHorde  = 3182,
-  KingValueMgHorde   = 2041,  KingValueEgHorde   = 975,
+  PawnValueMgHorde   = 317,   PawnValueEgHorde   = 316,
+  KnightValueMgHorde = 885,   KnightValueEgHorde = 985,
+  BishopValueMgHorde = 745,   BishopValueEgHorde = 964,
+  RookValueMgHorde   = 1060,  RookValueEgHorde   = 1187,
+  QueenValueMgHorde  = 3107,  QueenValueEgHorde  = 3266,
+  KingValueMgHorde   = 2296,  KingValueEgHorde   = 995,
 #endif
 #ifdef KOTH
   TempoMgHill       = 1,     TempoEgHill       = 1,
@@ -338,11 +338,11 @@ enum Value : int {
 #endif
 #ifdef LOSERS
   TempoMgLosers       = 0,     TempoEgLosers       = 0,
-  PawnValueMgLosers   = -137,  PawnValueEgLosers   = -360,
-  KnightValueMgLosers = -130,  KnightValueEgLosers = -41,
-  BishopValueMgLosers = -322,  BishopValueEgLosers = -64,
-  RookValueMgLosers   = -496,  RookValueEgLosers   =  62,
-  QueenValueMgLosers  = -187,  QueenValueEgLosers  = -318,
+  PawnValueMgLosers   = -113,  PawnValueEgLosers   = -18,
+  KnightValueMgLosers = -67,   KnightValueEgLosers = 217,
+  BishopValueMgLosers = -255,  BishopValueEgLosers = 125,
+  RookValueMgLosers   = -518,  RookValueEgLosers   = 140,
+  QueenValueMgLosers  = -148,  QueenValueEgLosers  = -256,
 #endif
 #ifdef RACE
   TempoMgRace       = 0,     TempoEgRace       = 0,
