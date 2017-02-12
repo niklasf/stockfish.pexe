@@ -54,7 +54,9 @@ ExtMove* generate(const Position& pos, ExtMove* moveList);
 template<GenType T>
 struct MoveList {
 
-  explicit MoveList(const Position& pos) : last(generate<T>(pos, moveList)) {}
+  explicit MoveList(const Position& pos) :
+    moveList((ExtMove *) malloc(sizeof(ExtMove) * MAX_MOVES)),
+    last(generate<T>(pos, moveList)) {}
   const ExtMove* begin() const { return moveList; }
   const ExtMove* end() const { return last; }
   size_t size() const { return last - moveList; }
@@ -64,7 +66,7 @@ struct MoveList {
   }
 
 private:
-  ExtMove moveList[MAX_MOVES], *last;
+  ExtMove *moveList, *last;
 };
 
 #endif // #ifndef MOVEGEN_H_INCLUDED
