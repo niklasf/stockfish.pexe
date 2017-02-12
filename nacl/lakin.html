@@ -1,0 +1,107 @@
+<html>
+  <body>
+    <embed id="stockfish" width="0" height="0" src="stockfish.nmf" type="application/x-pnacl">
+    <div id="content">
+      <h1>Stockfish.pexe test page</h1>
+      <form id="start" onsubmit="start(); return false;">
+        <label>Threads: <input id="threads" value="4" size="2" /></label>
+        <label>Hash: <input id="hash" value="32" size="3" /></label>
+        <label>MultiPV: <input id="multipv" value="2" size="1" /></label>
+        <label>Position: <input id="position" value="8/8/1p3pk1/2b2RPp/4Pq1K/2Q3PP/p7/8 w - - 2 42" size="40" /></label>
+        <button type="submit">Go</button>
+      </form>
+      <form id="stop" class="hide" onsubmit="stop(); return false;">
+        <button type="submit">Stop</button>
+      </form>
+      <div id="presets">
+	Known Crashers: 
+        <button onclick="crasher1();">#1</a>
+        <button onclick="crasher2();">#2</a>
+        <button onclick="crasher3();">#3</a>
+        <button onclick="crasher4();">#4</a>
+      </div>
+      <div id="out"><div id="pad"></div>
+      </div>
+      <script>
+var analyzePos = function(position, threads, hash, multipv) {
+  var el = function(id) { return document.getElementById(id); }
+  el('threads').value = threads;
+  el('hash').value = hash;
+  el('multipv').value = multipv;
+  el('position').value = position;
+  start();
+}
+window.crasher1 = function() {
+  analyzePos('6k1/p5pp/4p3/4Pp2/Ppr2P1P/1P4P1/2p2K2/2R5 b - - 0 37', '4', '32', '2');
+};
+window.crasher2 = function() {
+  analyzePos('R7/P5k1/7p/8/8/6PP/r7/4K3 w - - 0 1', '5', '512', '3');
+};
+window.crasher3 = function() {
+  analyzePos('8/8/1p3pk1/2b2RPp/4Pq1K/2Q3PP/p7/8 w - - 2 42', '7', '16', '1');
+};
+window.crasher4 = function() {
+  analyzePos('8/2k5/1p2p3/3p1q1P/3n1N2/pP4Q1/P2K4/8 w - - 0 44', '4', '128', '3');
+};
+        var stockfish = document.getElementById('stockfish');
+var out = document.getElementById('out');
+var append = function(tag, txt) {
+  var el = document.createElement(tag); el.textContent = txt; out.appendChild(el);
+  if (out.scrollHeight - out.clientHeight <= out.scrollTop + 100) out.scrollTop = out.scrollHeight - out.clientHeight;
+};
+var send = function(txt) {
+  console.log('> ' + txt);
+  append('in', txt);
+  stockfish.postMessage(txt);
+};
+stockfish.addEventListener('message', function(e) {
+  console.log('< ' + e.data);
+  append('out', e.data);
+});
+['crash', 'error'].forEach(function(eventType) {
+  stockfish.addEventListener(eventType, function() {
+    console.log(stockfish.lastError);
+    append('err', stockfish.lastError);
+    out.classList.add('error');
+  });
+});
+send('uci');
+
+var settings = ['threads','hash','multipv','position'];
+settings.forEach(function(k) { var v = localStorage.getItem(k); if (v) document.getElementById(k).value = v; });
+
+window.start = function() {
+  Array.from(document.getElementsByTagName('form')).forEach(function(form) { console.log("form"); form.classList.toggle('hide'); });
+  document.getElementById("presets").classList.toggle('hide');
+  var get = function(id) { return document.getElementById(id).value; }
+  settings.forEach(function(k) { localStorage.setItem(k, get(k)); });
+  send('setoption name Threads value ' + get('threads'));
+  send('setoption name Hash value ' + get('hash'));
+  send('setoption name MultipV value ' + get('multipv'));
+  get('position') && send('position fen ' + get('position'));
+  send('go infinite');
+}
+window.stop = function() {
+  document.getElementById('stockfish').remove();
+  document.getElementById('stop').remove();
+};
+window.onload = function() {out.scrollTop = out.scrollHeight;};
+</script>
+<style>
+  body { font-family: monospace; background: #222; color: #ddd; }
+  #content { height: 100%; display: flex; flex-flow: column; }
+  a, a:visited, a:hover { color: #ddd; }
+  h1 { font-size: 1.3em; margin-bottom: .5em; }
+  #presets { margin-bottom: .5em; }
+  #presets, button { margin-left: .5em; }
+  #out { background: #333; padding: 10px; font-size: 0.7em; line-height: 1.5em; flex: 1 1 100%; overflow: auto; height: 0px; }
+  #pad { height: 100%; }
+  in, out, err { display: block; }
+  in { color: #91c3f2; }
+  err { color: red; }
+  .error { outline: 3px solid red; }
+  #stop button { padding: 0 40%; }
+  .hide { display: none; }
+</style>
+</body>
+</html>
