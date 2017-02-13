@@ -989,6 +989,12 @@ namespace {
     }
     else
 #endif
+#ifdef ATOMIC
+    if (pos.is_atomic())
+    {
+    }
+    else
+#endif
 #ifdef LOSERS
     if (pos.is_losers())
     {
@@ -1031,20 +1037,12 @@ namespace {
 #endif
     {
 
-#ifdef ATOMIC
-    if (pos.is_atomic()) {} else
-#endif
     // Small bonus if the opponent has loose pawns or pieces
     if (   (pos.pieces(Them) ^ pos.pieces(Them, QUEEN, KING))
         & ~(ei.attackedBy[Us][ALL_PIECES] | ei.attackedBy[Them][ALL_PIECES]))
         score += LooseEnemies;
 
     // Non-pawn enemies attacked by a pawn
-#ifdef ATOMIC
-    if (pos.is_atomic())
-        weak = 0;
-    else
-#endif
     weak = (pos.pieces(Them) ^ pos.pieces(Them, PAWN)) & ei.attackedBy[Us][PAWN];
 
     if (weak)
@@ -1062,19 +1060,9 @@ namespace {
     }
 
     // Non-pawn enemies defended by a pawn
-#ifdef ATOMIC
-    if (pos.is_atomic())
-        defended = pos.pieces(Them) ^ pos.pieces(Them, PAWN);
-    else
-#endif
     defended = (pos.pieces(Them) ^ pos.pieces(Them, PAWN)) & ei.attackedBy[Them][PAWN];
 
     // Enemies not defended by a pawn and under our attack
-#ifdef ATOMIC
-    if (pos.is_atomic())
-        weak = 0;
-    else
-#endif
     weak =   pos.pieces(Them)
           & ~ei.attackedBy[Them][PAWN]
           &  ei.attackedBy[Us][ALL_PIECES];
@@ -1103,9 +1091,6 @@ namespace {
         score += Hanging * popcount(weak & ~ei.attackedBy[Them][ALL_PIECES]);
 
         b = weak & ei.attackedBy[Us][KING];
-#ifdef ATOMIC
-        if (pos.is_atomic()) {} else
-#endif
         if (b)
             score += ThreatByKing[more_than_one(b)];
     }
@@ -1114,11 +1099,6 @@ namespace {
     b = pos.pieces(Us, PAWN) & ~TRank7BB;
     b = shift<Up>(b | (shift<Up>(b & TRank2BB) & ~pos.pieces()));
 
-#ifdef ATOMIC
-    if (pos.is_atomic())
-        b &=  ~pos.pieces();
-    else
-#endif
     b &=  ~pos.pieces()
         & ~ei.attackedBy[Them][PAWN]
         & (ei.attackedBy[Us][ALL_PIECES] | ~ei.attackedBy[Them][ALL_PIECES]);
@@ -1287,10 +1267,6 @@ namespace {
                 mbonus += rr + r * 2, ebonus += rr + r * 2;
         } // rr != 0
 
-        // Assign a small bonus when the opponent has no pieces left
-        if (!pos.non_pawn_material(Them))
-            ebonus += 20;
-
         // Scale down bonus for candidate passers which need more than one pawn
         // push to become passed.
         if (!pos.pawn_passed(Us, s + pawn_push(Us)))
@@ -1386,21 +1362,21 @@ namespace {
 
 #ifdef ANTI
     if (pos.is_anti())
-        return make_score(TempoValue[pos.variant()][MG], TempoValue[pos.variant()][EG]);
+        return make_score(0, 0);
 #endif
     int kingDistance =  distance<File>(pos.square<KING>(WHITE), pos.square<KING>(BLACK))
                       - distance<Rank>(pos.square<KING>(WHITE), pos.square<KING>(BLACK));
     int pawns = pos.count<PAWN>(WHITE) + pos.count<PAWN>(BLACK);
 
     // Compute the initiative bonus for the attacking side
-    int initiative = TempoValue[pos.variant()][EG] + 8 * (asymmetry + kingDistance - 15) + 12 * pawns;
+    int initiative = 8 * (asymmetry + kingDistance - 15) + 12 * pawns;
 
     // Now apply the bonus: note that we find the attacking side by extracting
     // the sign of the endgame value, and that we carefully cap the bonus so
     // that the endgame score will never be divided by more than two.
     int value = ((eg > 0) - (eg < 0)) * std::max(initiative, -abs(eg / 2));
 
-    return make_score(TempoValue[pos.variant()][MG], value);
+    return make_score(0, value);
   }
 
 
