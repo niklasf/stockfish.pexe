@@ -100,7 +100,7 @@ class MovePicker {
 public:
   MovePicker(const MovePicker&) = delete;
   MovePicker& operator=(const MovePicker&) = delete;
-  ~MovePicker() { free(moves); }
+  ~MovePicker() { delete[] moves; }
 
   MovePicker(const Position&, Move, Value);
   MovePicker(const Position&, Move, Depth, Square);
