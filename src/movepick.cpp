@@ -67,7 +67,7 @@ namespace {
 /// ordering is at the current node.
 
 MovePicker::MovePicker(const Position& p, Move ttm, Depth d, Search::Stack* s)
-           : pos(p), ss(s), depth(d), moves(new ExtMove[MAX_MOVES]) {
+           : pos(p), ss(s), depth(d) {
 
   assert(d > DEPTH_ZERO);
 
@@ -80,7 +80,7 @@ MovePicker::MovePicker(const Position& p, Move ttm, Depth d, Search::Stack* s)
 }
 
 MovePicker::MovePicker(const Position& p, Move ttm, Depth d, Square s)
-           : pos(p), moves(new ExtMove[MAX_MOVES]) {
+           : pos(p) {
 
   assert(d <= DEPTH_ZERO);
 
@@ -105,7 +105,7 @@ MovePicker::MovePicker(const Position& p, Move ttm, Depth d, Square s)
 }
 
 MovePicker::MovePicker(const Position& p, Move ttm, Value th)
-           : pos(p), threshold(th), moves(new ExtMove[MAX_MOVES]) {
+           : pos(p), threshold(th) {
 
   assert(!pos.checkers());
 

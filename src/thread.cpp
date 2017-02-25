@@ -26,12 +26,21 @@
 #include "thread.h"
 #include "uci.h"
 
+void *trampoline(void *arg) {
+  ((Thread *) arg)->idle_loop();
+  return nullptr;
+}
+
 ThreadPool Threads; // Global object
 
 /// Thread constructor launches the thread and then waits until it goes to sleep
 /// in idle_loop().
 
 Thread::Thread() {
+
+  pthread_attr_t attr;
+  pthread_attr_init(&attr);
+  pthread_attr_setstacksize(&attr, 1048576);
 
   resetCalls = exit = false;
   maxPly = callsCnt = 0;
@@ -40,7 +49,7 @@ Thread::Thread() {
 
   std::unique_lock<Mutex> lk(mutex);
   searching = true;
-  nativeThread = std::thread(&Thread::idle_loop, this);
+  pthread_create(&nativeThread, &attr, trampoline, this);
   sleepCondition.wait(lk, [&]{ return !searching; });
 }
 
@@ -53,7 +62,7 @@ Thread::~Thread() {
   exit = true;
   sleepCondition.notify_one();
   mutex.unlock();
-  nativeThread.join();
+  pthread_join(nativeThread, nullptr);
 }
 
 

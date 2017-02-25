@@ -25,7 +25,7 @@
 #include <bitset>
 #include <condition_variable>
 #include <mutex>
-#include <thread>
+#include <pthread.h>
 #include <vector>
 
 #include "material.h"
@@ -43,7 +43,7 @@
 
 class Thread {
 
-  std::thread nativeThread;
+  pthread_t nativeThread;
   Mutex mutex;
   ConditionVariable sleepCondition;
   bool exit, searching;

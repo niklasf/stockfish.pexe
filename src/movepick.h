@@ -100,7 +100,6 @@ class MovePicker {
 public:
   MovePicker(const MovePicker&) = delete;
   MovePicker& operator=(const MovePicker&) = delete;
-  ~MovePicker() { delete[] moves; }
 
   MovePicker(const Position&, Move, Value);
   MovePicker(const Position&, Move, Depth, Square);
@@ -122,7 +121,7 @@ private:
   Value threshold;
   int stage;
   ExtMove *cur, *endMoves, *endBadCaptures;
-  ExtMove *moves;
+  ExtMove moves[MAX_MOVES];
 };
 
 #endif // #ifndef MOVEPICK_H_INCLUDED
