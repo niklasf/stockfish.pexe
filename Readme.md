@@ -5,16 +5,18 @@ A multi-threaded [Stockfish](https://github.com/official-stockfish/Stockfish)
 that runs in Chrome using [PNaCl](https://www.chromium.org/nativeclient/pnacl).
 Also see [stockfish.js](https://github.com/niklasf/stockfish.js) as a fallback.
 
+About 500 KB uncompressed, 400 KB gzipped.
+
 Usage
 ----
 
 See ``nacl/index.html`` for an example.
-About 500 KB uncompressed, 400 KB gzipped.
 
 Building
 --------
 
-1. Install the NaCl SDK and setup an environment variable
+1. Install the [NaCl SDK](https://developer.chrome.com/native-client/sdk/download)
+   and setup an environment variable
    ``NACL_SDK_ROOT=path/to/nacl_sdk/pepper_49``
 2. ``cd nacl``
 3. ``make``
@@ -22,9 +24,8 @@ Building
 Running
 -------
 
-- Start an HTTP server, for instance ``http-server ~/stockfish.pexe/nacl``
+- Start an HTTP server, for instance ``python3 -m http.server ./nacl``
 - Browse http://127.0.0.1:8080/ in chrome
-- Open the dev tools console and execute ``run_test()``
 
 Changes to original Stockfish
 -----------------------------
