@@ -9,7 +9,7 @@ install:
 - wget https://storage.googleapis.com/nativeclient-mirror/nacl/nacl_sdk/nacl_sdk.zip
 - unzip nacl_sdk.zip
 - cd nacl_sdk
-- ./naclsdk update
+- ./naclsdk update > /dev/null
 - ./naclsdk list
 - cd ..
 - export NACL_SDK_ROOT=$TRAVIS_BUILD_DIR/nacl_sdk/pepper_49
