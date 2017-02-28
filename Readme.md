@@ -1,7 +1,7 @@
 stockfish.pexe
 ==============
 
-[![Build Status](https://travis-ci.org/niklasf/stockfish.pexe.svg?branch=master)](https://travis-ci.org/niklasf/stockfish.pexe)
+[![Build Status](https://travis-ci.org/niklasf/stockfish.pexe.svg?branch=ddugovic)](https://travis-ci.org/niklasf/stockfish.pexe)
 
 A multi-threaded [Stockfish](https://github.com/official-stockfish/Stockfish)
 that runs in Chrome using [PNaCl](https://www.chromium.org/nativeclient/pnacl).
