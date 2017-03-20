@@ -23,7 +23,9 @@ deploy:
   provider: releases
   api_key:
     secure: qBEsb+YN7+Gk1o7zWU7yTTzGLWvDjQIqBIOJ3+RqvhGwb0938Usywpb42nbQL+Dj+zHIHTqpP1CRo/5UAjuGNbNNdK90p+4/oM1rDsXvst6DxI+B+Ae8a2Uro36zVeT5IO0gbVlJ8KnRuRBccnWR5YVw+1KlEzET8xoynlXE1jerYm1S945tLwPBFT42HnzbuvWk72U6JnMOauqIfT5mHaDHDSIy5JfMNqTFM2u82B8Ys5w6vjeJj1I83Qgybu7Q/qid2jxvP/WmouRVmnoyPNBheqXTIxRETd9yoRvKmo1/+38LpJyfQmquGrCc9lxBTCrUJqdzhpXwwdN0DsZK6LuFCJQLqDDZDJUXL1TXmUSFqxQl4flEamjOPtANUrji0CJ4/hO4Bk9chgGVlBljHzFd31eGUqlufHQ89YQVhX2TdVXP8WSIMg6PTEJ2TTQ/HVHwghyLPvq8T2bbpUhkEel6LcD2/T9BxVPmyHLvpzxKrxX+JtQP87pIfouMiML/V1VOl8F9Sjk2ErVttojg6w8HZ1WcX01yO2UcLByKikn/Ok6CY9bd5s1nS1lkAgqNG2saxqZCDVPPZc5YqKhG/BjQ4+/uGAp3hXLxx82sBQWPeJeSYsepucpNQRchK5igZDsGvywIvmbwXu83e4U+7LerwNNzBQ1DWMXaOg8T8w4=
-  file: nacl/stockfish.pexe
+  file:
+  - nacl/stockfish.pexe
+  - nacl/stockfish.nmf
   skip_cleanup: true
   on:
     tags: true
