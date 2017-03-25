@@ -1055,19 +1055,7 @@ moves_loop: // When in check search starts from here
       moveCountPruning =   depth < 16 * ONE_PLY
                         && moveCount >= FutilityMoveCounts[improving][depth / ONE_PLY];
 
-      // Step 12. Extensions
-      // Extend checks
-      if (    givesCheck
-          && !moveCountPruning
-          &&  pos.see_ge(move, VALUE_ZERO))
-          extension = ONE_PLY;
-#ifdef ANTI
-      if (    pos.is_anti()
-          && !moveCountPruning
-          && pos.capture(move)
-          && MoveList<LEGAL>(pos).size() == 1)
-          extension = ONE_PLY;
-#endif
+      // Step 12. Singular and Gives Check Extensions
 
       // Singular extension search. If all moves but one fail low on a search of
       // (alpha-s, beta-s), and just one fails high on (alpha, beta), then that move
@@ -1076,7 +1064,6 @@ moves_loop: // When in check search starts from here
       // ttValue minus a margin then we extend the ttMove.
       if (    singularExtensionNode
           &&  move == ttMove
-          && !extension
           &&  pos.legal(move))
       {
           Value rBeta = std::max(ttValue - 2 * depth / ONE_PLY, -VALUE_MATE);
@@ -1088,14 +1075,22 @@ moves_loop: // When in check search starts from here
           if (value < rBeta)
               extension = ONE_PLY;
       }
+      else if (   givesCheck
+               && !moveCountPruning
+               &&  pos.see_ge(move, VALUE_ZERO))
+          extension = ONE_PLY;
+#ifdef ANTI
+      else if (   pos.is_anti()
+               && !moveCountPruning
+               &&  pos.capture(move)
+               &&  MoveList<LEGAL>(pos).size() == 1)
+          extension = ONE_PLY;
+#endif
 
       // Calculate new depth for this move
       newDepth = depth - ONE_PLY + extension;
 
       // Step 13. Pruning at shallow depth
-#ifdef RACE
-      if (pos.is_race() && type_of(moved_piece) == KING && rank_of(to_sq(move)) > rank_of(from_sq(move))) {} else
-#endif
       if (  !rootNode
           && bestValue > VALUE_MATED_IN_MAX_PLY)
       {
