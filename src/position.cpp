@@ -1142,9 +1142,6 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 
   assert(is_ok(m));
   assert(&newSt != st);
-#ifdef ATOMIC
-  assert(!is_atomic() || !givesCheck);
-#endif
 #ifdef ANTI
   assert(!is_anti() || !givesCheck);
 #endif
@@ -2056,6 +2053,7 @@ bool Position::pos_is_ok(int* failedStep) const {
       }
 
       if (step == Lists)
+      {
           for (Piece pc : Pieces)
           {
               if (pieceCount[pc] != popcount(pieces(color_of(pc), type_of(pc))))
@@ -2065,6 +2063,15 @@ bool Position::pos_is_ok(int* failedStep) const {
                   if (board[pieceList[pc][i]] != pc || index[pieceList[pc][i]] != i)
                       return false;
           }
+#ifdef CRAZYHOUSE
+          if (is_house()) {} else
+#endif
+#ifdef HORDE
+          if (is_horde()) {} else
+#endif
+          if (pieceCount[PAWN] > FILE_NB)
+              return false;
+      }
 
       if (step == Castling)
           for (Color c = WHITE; c <= BLACK; ++c)

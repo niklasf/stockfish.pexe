@@ -46,13 +46,13 @@ namespace {
     {
       //            OUR PIECES
       // pair pawn knight bishop rook queen king
-      {  -62                                    }, // Bishop pair
-      { -179,  59                               }, // Pawn
-      {  -50,  178,  -47                        }, // Knight      OUR PIECES
-      {    0, -130, -187,    0                  }, // Bishop
-      { -155, -317,   60, -218, -288            }, // Rook
-      {   89, -259,  -60, -179,  -32, -76       }, // Queen
-      {    0,    0,    0,    0,    0,   0,    0 }  // King
+      { -129                                    }, // Bishop pair
+      { -205,   49                              }, // Pawn
+      {  -81,  436,  -81                        }, // Knight      OUR PIECES
+      {    0, -204, -328,    0                  }, // Bishop
+      { -197, -436,  -12, -183,   92            }, // Rook
+      {  197,   40,  133, -179,   93, -66       }, // Queen
+      {    1,  -48,   98,   36,   82, 165, -168 }  // King
     },
 #endif
 #ifdef ATOMIC
@@ -108,12 +108,12 @@ namespace {
     {
       //            OUR PIECES
       // pair pawn knight bishop rook queen
-      {1667                               }, // Bishop pair
-      {  40,    2                         }, // Pawn
-      {  32,  255,  -3                    }, // Knight      OUR PIECES
-      {   0,  104,   4,    0              }, // Bishop
-      { -26,   -2,  47,   105,  -149      }, // Rook
-      {-185,   24, 122,   137,  -134,   0 }  // Queen
+      {1634                               }, // Bishop pair
+      {  24,  156                         }, // Pawn
+      {  90,  243, 133                    }, // Knight      OUR PIECES
+      {   0,  120,  66,     0             }, // Bishop
+      {  11,   -2,  41,    15,  -166      }, // Rook
+      {-251,  258,  86,   141,  -205,  43 }  // Queen
     },
 #endif
 #ifdef RACE
@@ -121,11 +121,11 @@ namespace {
       //            OUR PIECES
       // pair pawn knight bishop rook queen
       {1667                               }, // Bishop pair
-      {  40,    2                         }, // Pawn
-      {  32,  255,  -3                    }, // Knight      OUR PIECES
-      {   0,  104,   4,    0              }, // Bishop
-      { -26,   -2,  47,   105,  -149      }, // Rook
-      {-185,   24, 122,   137,  -134,   0 }  // Queen
+      {   0,    0                         }, // Pawn
+      {  32,    0,  -3                    }, // Knight      OUR PIECES
+      {   0,    0,   4,    0              }, // Bishop
+      { -26,    0,  47,   105,  -149      }, // Rook
+      {-185,    0, 122,   137,  -134,   0 }  // Queen
     },
 #endif
 #ifdef RELAY
@@ -170,12 +170,12 @@ namespace {
       //           THEIR PIECES
       // pair pawn knight bishop rook queen king
       {    0                                   }, // Bishop pair
-      {  110,    0                             }, // Pawn
-      {    9,   60,    0                       }, // Knight      OUR PIECES
-      {  -53, -143,   33,    0                 }, // Bishop
-      {   73, -298,    3,   41,   0            }, // Rook
-      { -141, -370,   56,   45, -79,   0       }, // Queen
-      {    0,    0,    0,    0,   0,   0,    0 }  // King
+      {   55,    0                             }, // Pawn
+      {   23,   27,    0                       }, // Knight      OUR PIECES
+      {  -37, -248,  -18,    0                 }, // Bishop
+      { -109, -628, -145,  102,   0            }, // Rook
+      { -156, -133,  134,   78,  48,    0      }, // Queen
+      {   22,  155,   84,   49, -49, -104,   0 }  // King
     },
 #endif
 #ifdef ATOMIC
@@ -231,12 +231,12 @@ namespace {
     {
       //           THEIR PIECES
       // pair pawn knight bishop rook queen
-      {   0                               }, // Bishop pair
-      {  36,    0                         }, // Pawn
-      {   9,   63,   0                    }, // Knight      OUR PIECES
-      {  59,   65,  42,     0             }, // Bishop
-      {  46,   39,  24,   -24,    0       }, // Rook
-      { 101,  100, -37,   141,  268,    0 }  // Queen
+      {   0                                }, // Bishop pair
+      {-132,    0                          }, // Pawn
+      {  -5,  185,    0                    }, // Knight      OUR PIECES
+      {  59,  440, -106,     0             }, // Bishop
+      { 277,   30,    5,    27,    0       }, // Rook
+      { 217,  357,    5,    51,  254,    0 }  // Queen
     },
 #endif
 #ifdef RACE
@@ -244,11 +244,11 @@ namespace {
       //           THEIR PIECES
       // pair pawn knight bishop rook queen
       {   0                               }, // Bishop pair
-      {  36,    0                         }, // Pawn
-      {   9,   63,   0                    }, // Knight      OUR PIECES
-      {  59,   65,  42,     0             }, // Bishop
-      {  46,   39,  24,   -24,    0       }, // Rook
-      { 101,  100, -37,   141,  268,    0 }  // Queen
+      {   0,    0                         }, // Pawn
+      {   9,    0,   0                    }, // Knight      OUR PIECES
+      {  59,    0,  42,     0             }, // Bishop
+      {  46,    0,  24,   -24,    0       }, // Rook
+      { 101,    0, -37,   141,  268,    0 }  // Queen
     },
 #endif
 #ifdef RELAY
@@ -278,7 +278,7 @@ namespace {
   };
 
   // PawnsSet[count] contains a bonus/malus indexed by number of pawns
-  const int PawnsSet[9] = { 
+  const int PawnsSet[FILE_NB + 1] = {
      24, -32, 107, -51, 117, -9, -126, -21, 31
   };
 
@@ -328,7 +328,7 @@ namespace {
 
     const Color Them = (Us == WHITE ? BLACK : WHITE);
 
-    int bonus = PawnsSet[pieceCount[Us][PAWN]];
+    int bonus = PawnsSet[std::min(pieceCount[Us][PAWN], (int)FILE_NB)];
 
     // Second-degree polynomial material imbalance by Tord Romstad
     PieceType pt_max =

@@ -441,6 +441,12 @@ inline Bitboard Position::attackers_to(Square s) const {
 }
 
 inline Bitboard Position::checkers() const {
+#ifdef ANTI
+  assert(!is_anti() || !st->checkersBB);
+#endif
+#ifdef RACE
+  assert(!is_race() || !(st->checkersBB - square<KING>(~sideToMove)));
+#endif
   return st->checkersBB;
 }
 
@@ -469,11 +475,6 @@ inline bool Position::pawn_passed(Color c, Square s) const {
 }
 
 inline bool Position::advanced_pawn_push(Move m) const {
-#ifdef RACE
-  if (is_race())
-    return   type_of(moved_piece(m)) == KING
-          && rank_of(from_sq(m)) > RANK_4;
-#endif
   return   type_of(moved_piece(m)) == PAWN
         && relative_rank(sideToMove, from_sq(m)) > RANK_4;
 }
@@ -842,12 +843,6 @@ inline Value Position::variant_result(int ply, Value draw_value) const {
 }
 
 inline Value Position::checkmate_value(int ply) const {
-#ifdef ANTI
-  assert(!is_anti());
-#endif
-#ifdef RACE
-  assert(!is_race());
-#endif
 #ifdef LOSERS
   if (is_losers())
       return mate_in(ply);
