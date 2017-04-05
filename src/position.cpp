@@ -516,14 +516,6 @@ void Position::set_state(StateInfo* si) const {
   si->nonPawnMaterial[WHITE] = si->nonPawnMaterial[BLACK] = VALUE_ZERO;
   si->psq = SCORE_ZERO;
   set_check_info(si);
-#ifdef RACE
-  if (is_race())
-  {
-      Rank r = rank_of(square<KING>(sideToMove));
-      si->checkersBB = r == RANK_8 ? 0 : Rank8BB & square<KING>(~sideToMove);
-  }
-  else
-#endif
 #ifdef HORDE
   if (is_horde() && is_horde_color(sideToMove))
       si->checkersBB = 0;
@@ -1349,7 +1341,10 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
   // Move the piece. The tricky Chess960 castling is handled earlier
 #ifdef CRAZYHOUSE
   if (type_of(m) == DROP)
+  {
       drop_piece(pc, to);
+      st->materialKey ^= Zobrist::psq[pc][pieceCount[pc]-1];
+  }
   else
 #endif
   if (type_of(m) != CASTLING)
@@ -1442,11 +1437,6 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
   // Update the key with the final value
   st->key = k;
 
-#ifdef RACE
-  if (is_race())
-      st->checkersBB = Rank8BB & square<KING>(us);
-  else
-#endif
   // Calculate checkers bitboard (if move gives check)
   st->checkersBB = givesCheck ? attackers_to(square<KING>(them)) & pieces(us) : 0;
 
@@ -1740,7 +1730,7 @@ bool Position::see_ge(Move m, Value v) const {
 #endif
 
 #ifdef THREECHECK
-  if (is_three_check() && gives_check(m))
+  if (is_three_check() && color_of(moved_piece(m)) == sideToMove && gives_check(m))
       return true;
 #endif
 
