@@ -67,8 +67,9 @@ namespace {
   const int skipPhase[] = { 0, 1, 0, 1, 2, 3, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 6, 7 };
 
   // Razoring and futility margin based on depth
+  // razor_margin[0] is unused as long as depth >= ONE_PLY in search
   const int razor_margin[VARIANT_NB][4] = {
-  { 483, 570, 603, 554 },
+  { 0, 570, 603, 554 },
 #ifdef ANTI
   { 1917, 2201, 2334, 2407 },
 #endif
@@ -83,9 +84,6 @@ namespace {
 #endif
 #ifdef KOTH
   { 524, 587, 676, 582 },
-#endif
-#ifdef LOSERS
-  { 1981, 2335, 2351, 2142 },
 #endif
 #ifdef RACE
   { 1043, 1016, 1004, 1012 },
@@ -113,9 +111,6 @@ namespace {
 #endif
 #ifdef KOTH
   192,
-#endif
-#ifdef LOSERS
-  593,
 #endif
 #ifdef RACE
   336,
@@ -145,9 +140,6 @@ namespace {
 #ifdef KOTH
   { 418, 305 },
 #endif
-#ifdef LOSERS
-  { 299, 281 },
-#endif
 #ifdef RACE
   { 305, 311 },
 #endif
@@ -175,9 +167,6 @@ namespace {
 #ifdef KOTH
   324,
 #endif
-#ifdef LOSERS
-  200,
-#endif
 #ifdef RACE
   235,
 #endif
@@ -193,14 +182,17 @@ namespace {
   int FutilityMoveCounts[2][16]; // [improving][depth]
   int Reductions[2][2][64][64];  // [pv][improving][depth][moveNumber]
 
+  // Threshold used for countermoves based pruning
+  const int CounterMovePruneThreshold = 0;
+
   template <bool PvNode> Depth reduction(bool i, Depth d, int mn) {
     return Reductions[PvNode][i][std::min(d / ONE_PLY, 63)][std::min(mn, 63)] * ONE_PLY;
   }
 
   // History and stats update bonus, based on depth
-  Value stat_bonus(Depth depth) {
+  int stat_bonus(Depth depth) {
     int d = depth / ONE_PLY ;
-    return d > 17 ? VALUE_ZERO : Value(d * d + 2 * d - 2);
+    return d > 17 ? 0 : d * d + 2 * d - 2;
   }
 
 #ifdef SKILL
@@ -217,8 +209,8 @@ namespace {
   };
 #endif
 
-  // EasyMoveManager structure is used to detect an 'easy move'. When the PV is
-  // stable across multiple search iterations, we can quickly return the best move.
+  // EasyMoveManager structure is used to detect an 'easy move'. When the PV is stable
+  // across multiple search iterations, we can quickly return the best move.
   struct EasyMoveManager {
 
     void clear() {
@@ -268,8 +260,8 @@ namespace {
   Value value_to_tt(Value v, int ply);
   Value value_from_tt(Value v, int ply);
   void update_pv(Move* pv, Move move, Move* childPv);
-  void update_cm_stats(Stack* ss, Piece pc, Square s, Value bonus);
-  void update_stats(const Position& pos, Stack* ss, Move move, Move* quiets, int quietsCnt, Value bonus);
+  void update_cm_stats(Stack* ss, Piece pc, Square s, int bonus);
+  void update_stats(const Position& pos, Stack* ss, Move move, Move* quiets, int quietsCnt, int bonus);
   void check_time();
 
 } // namespace
@@ -295,8 +287,8 @@ void Search::init() {
 
   for (int d = 0; d < 16; ++d)
   {
-      FutilityMoveCounts[0][d] = int(2.4 + 0.773 * pow(d + 0.00, 1.8));
-      FutilityMoveCounts[1][d] = int(2.9 + 1.045 * pow(d + 0.49, 1.8));
+      FutilityMoveCounts[0][d] = int(2.4 + 0.74 * pow(d, 1.78));
+      FutilityMoveCounts[1][d] = int(5.0 + 1.00 * pow(d, 2.00));
   }
 }
 
@@ -313,6 +305,9 @@ void Search::clear() {
       th->history.clear();
       th->counterMoveHistory.clear();
       th->resetCalls = true;
+      CounterMoveStats& cm = th->counterMoveHistory[NO_PIECE][0];
+      int* t = &cm[NO_PIECE][0];
+      std::fill(t, t + sizeof(cm), CounterMovePruneThreshold - 1);
   }
 
   Threads.main()->previousScore = VALUE_INFINITE;
@@ -735,8 +730,8 @@ namespace {
     // Step 1. Initialize node
     Thread* thisThread = pos.this_thread();
     inCheck = pos.checkers();
-    moveCount = quietCount =  ss->moveCount = 0;
-    ss->history = VALUE_ZERO;
+    moveCount = quietCount = ss->moveCount = 0;
+    ss->history = 0;
     bestValue = -VALUE_INFINITE;
     ss->ply = (ss-1)->ply + 1;
 
@@ -744,9 +739,10 @@ namespace {
     if (thisThread->resetCalls.load(std::memory_order_relaxed))
     {
         thisThread->resetCalls = false;
+
         // At low node count increase the checking rate to about 0.1% of nodes
         // otherwise use a default value.
-        thisThread->callsCnt = Limits.nodes ? std::min((int64_t)4096, Limits.nodes / 1024)
+        thisThread->callsCnt = Limits.nodes ? std::min(4096, int(Limits.nodes / 1024))
                                             : 4096;
     }
 
@@ -824,7 +820,7 @@ namespace {
             // Penalty for a quiet ttMove that fails low
             else if (!pos.capture_or_promotion(ttMove))
             {
-                Value penalty = -stat_bonus(depth + ONE_PLY);
+                int penalty = -stat_bonus(depth);
                 thisThread->history.update(pos.side_to_move(), ttMove, penalty);
                 update_cm_stats(ss, pos.moved_piece(ttMove), to_sq(ttMove), penalty);
             }
@@ -861,10 +857,6 @@ namespace {
     }
 #ifdef ANTI
     if (pos.is_anti() && pos.can_capture())
-        goto moves_loop;
-#endif
-#ifdef LOSERS
-    if (pos.is_losers() && pos.can_capture_losers())
         goto moves_loop;
 #endif
 
@@ -907,7 +899,7 @@ namespace {
 #ifdef CRAZYHOUSE
         // Do not bother with null-move search if opponent can drop pieces
         && (!pos.is_house() || (eval < 2 * VALUE_KNOWN_WIN
-            && !(depth > 4 * ONE_PLY && pos.count_in_hand(~pos.side_to_move(), ALL_PIECES))))
+            && !(depth > 4 * ONE_PLY && pos.count_in_hand<ALL_PIECES>(~pos.side_to_move()))))
 #endif
         &&  pos.non_pawn_material(pos.side_to_move()))
     {
@@ -976,7 +968,11 @@ namespace {
     }
 
     // Step 10. Internal iterative deepening (skipped when in check)
+#ifdef CRAZYHOUSE
+    if (    depth >= (pos.is_house() ? 4 : 6) * ONE_PLY
+#else
     if (    depth >= 6 * ONE_PLY
+#endif
         && !ttMove
         && (PvNode || ss->staticEval + 256 >= beta))
     {
@@ -992,9 +988,6 @@ moves_loop: // When in check search starts from here
     const CounterMoveStats& cmh = *(ss-1)->counterMoves;
     const CounterMoveStats& fmh = *(ss-2)->counterMoves;
     const CounterMoveStats& fm2 = *(ss-4)->counterMoves;
-    const bool cm_ok = is_ok((ss-1)->currentMove);
-    const bool fm_ok = is_ok((ss-2)->currentMove);
-    const bool f2_ok = is_ok((ss-4)->currentMove);
 
     MovePicker mp(pos, ttMove, depth, ss);
     value = bestValue; // Workaround a bogus 'uninitialized' warning under gcc
@@ -1047,7 +1040,11 @@ moves_loop: // When in check search starts from here
                   && !pos.is_atomic()
 #endif
 #ifdef ANTI
+#ifdef LOSERS
+                  && !(pos.is_anti() && !pos.is_losers())
+#else
                   && !pos.is_anti()
+#endif
 #endif
                   ? pos.check_squares(type_of(pos.piece_on(from_sq(move)))) & to_sq(move)
                   : pos.gives_check(move);
@@ -1061,7 +1058,7 @@ moves_loop: // When in check search starts from here
       // (alpha-s, beta-s), and just one fails high on (alpha, beta), then that move
       // is singular and should be extended. To verify this we do a reduced search
       // on all the other moves but the ttMove and if the result is lower than
-      // ttValue minus a margin then we extend the ttMove.
+      // ttValue minus a margin then we will extend the ttMove.
       if (    singularExtensionNode
           &&  move == ttMove
           &&  pos.legal(move))
@@ -1075,9 +1072,9 @@ moves_loop: // When in check search starts from here
           if (value < rBeta)
               extension = ONE_PLY;
       }
-      else if (   givesCheck
+      else if (    givesCheck
                && !moveCountPruning
-               &&  pos.see_ge(move, VALUE_ZERO))
+               &&  pos.see_ge(move))
           extension = ONE_PLY;
 #ifdef ANTI
       else if (   pos.is_anti()
@@ -1086,12 +1083,24 @@ moves_loop: // When in check search starts from here
                &&  MoveList<LEGAL>(pos).size() == 1)
           extension = ONE_PLY;
 #endif
+#ifdef CRAZYHOUSE
+      else if (    pos.is_house()
+               &&  givesCheck
+               && !moveCountPruning
+               &&  pos.see_ge(move, - pos.material_in_hand(pos.side_to_move()) / 2))
+          extension = ONE_PLY;
+#endif
 
       // Calculate new depth for this move
       newDepth = depth - ONE_PLY + extension;
 
       // Step 13. Pruning at shallow depth
       if (  !rootNode
+#ifdef HORDE
+          && (pos.non_pawn_material(pos.side_to_move()) || pos.is_horde())
+#else
+          && pos.non_pawn_material(pos.side_to_move())
+#endif
           && bestValue > VALUE_MATED_IN_MAX_PLY)
       {
           if (   !captureOrPromotion
@@ -1100,14 +1109,15 @@ moves_loop: // When in check search starts from here
               && (!pos.is_anti() || !(pos.attackers_to(to_sq(move)) & pos.pieces(~pos.side_to_move())))
 #endif
 #ifdef HORDE
-              && (pos.is_horde() || !pos.advanced_pawn_push(move) || pos.non_pawn_material() >= 5000)
+              && (pos.is_horde() || !pos.advanced_pawn_push(move) || pos.non_pawn_material() >= Value(5000))
 #else
-              && (!pos.advanced_pawn_push(move) || pos.non_pawn_material() >= 5000)
+              && (!pos.advanced_pawn_push(move) || pos.non_pawn_material() >= Value(5000))
 #endif
           )
           {
               // Move count based pruning
-              if (moveCountPruning) {
+              if (moveCountPruning)
+              {
                   skipQuiets = true;
                   continue;
               }
@@ -1117,9 +1127,8 @@ moves_loop: // When in check search starts from here
 
               // Countermoves based pruning
               if (   lmrDepth < 3
-                  && ((cmh[moved_piece][to_sq(move)] < VALUE_ZERO) || !cm_ok)
-                  && ((fmh[moved_piece][to_sq(move)] < VALUE_ZERO) || !fm_ok)
-                  && ((fm2[moved_piece][to_sq(move)] < VALUE_ZERO) || !f2_ok || (cm_ok && fm_ok)))
+                  && (cmh[moved_piece][to_sq(move)] < CounterMovePruneThreshold)
+                  && (fmh[moved_piece][to_sq(move)] < CounterMovePruneThreshold))
                   continue;
 
               // Futility pruning: parent node
@@ -1181,8 +1190,8 @@ moves_loop: // When in check search starts from here
               // Decrease reduction for moves that escape a capture. Filter out
               // castling moves, because they are coded as "king captures rook" and
               // hence break make_move().
-              else if (   type_of(move) == NORMAL
-                       && !pos.see_ge(make_move(to_sq(move), from_sq(move)),  VALUE_ZERO))
+              else if (    type_of(move) == NORMAL
+                       && !pos.see_ge(make_move(to_sq(move), from_sq(move))))
                   r -= 2 * ONE_PLY;
 
               ss->history =  cmh[moved_piece][to_sq(move)]
@@ -1192,10 +1201,10 @@ moves_loop: // When in check search starts from here
                            - 4000; // Correction factor
 
               // Decrease/increase reduction by comparing opponent's stat score
-              if (ss->history > VALUE_ZERO && (ss-1)->history < VALUE_ZERO)
+              if (ss->history > 0 && (ss-1)->history < 0)
                   r -= ONE_PLY;
 
-              else if (ss->history < VALUE_ZERO && (ss-1)->history > VALUE_ZERO)
+              else if (ss->history < 0 && (ss-1)->history > 0)
                   r += ONE_PLY;
 
               // Decrease/increase reduction for moves with a good/bad history
@@ -1322,7 +1331,6 @@ moves_loop: // When in check search starts from here
     }
     else if (bestMove)
     {
-
         // Quiet best move: update move sorting heuristics
         if (!pos.capture_or_promotion(bestMove))
             update_stats(pos, ss, bestMove, quietsSearched, quietCount, stat_bonus(depth));
@@ -1334,13 +1342,14 @@ moves_loop: // When in check search starts from here
     // Bonus for prior countermove that caused the fail low
     else if (    depth >= 3 * ONE_PLY
              && !pos.captured_piece()
-             && cm_ok)
+             && is_ok((ss-1)->currentMove))
         update_cm_stats(ss-1, pos.piece_on(prevSq), prevSq, stat_bonus(depth));
 
-    tte->save(posKey, value_to_tt(bestValue, ss->ply),
-              bestValue >= beta ? BOUND_LOWER :
-              PvNode && bestMove ? BOUND_EXACT : BOUND_UPPER,
-              depth, bestMove, ss->staticEval, TT.generation());
+    if (!excludedMove)
+        tte->save(posKey, value_to_tt(bestValue, ss->ply),
+                  bestValue >= beta ? BOUND_LOWER :
+                  PvNode && bestMove ? BOUND_EXACT : BOUND_UPPER,
+                  depth, bestMove, ss->staticEval, TT.generation());
 
     assert(bestValue > -VALUE_INFINITE && bestValue < VALUE_INFINITE);
 
@@ -1466,17 +1475,16 @@ moves_loop: // When in check search starts from here
     {
       assert(is_ok(move));
 
-#ifdef RACE
-      if (pos.is_race())
-          givesCheck = type_of(pos.piece_on(from_sq(move))) == KING && rank_of(to_sq(move)) == RANK_8;
-      else
-#endif
       givesCheck =  type_of(move) == NORMAL && !pos.discovered_check_candidates()
 #ifdef ATOMIC
                   && !pos.is_atomic()
 #endif
 #ifdef ANTI
+#ifdef LOSERS
+                  && !(pos.is_anti() && !pos.is_losers())
+#else
                   && !pos.is_anti()
+#endif
 #endif
                   ? pos.check_squares(type_of(pos.piece_on(from_sq(move)))) & to_sq(move)
                   : pos.gives_check(move);
@@ -1484,6 +1492,9 @@ moves_loop: // When in check search starts from here
       // Futility pruning
       if (   !InCheck
           && !givesCheck
+#ifdef RACE
+          && !(pos.is_race() && type_of(pos.piece_on(from_sq(move))) == KING && rank_of(to_sq(move)) == RANK_8)
+#endif
           &&  futilityBase > -VALUE_KNOWN_WIN
           && !pos.advanced_pawn_push(move))
       {
@@ -1516,13 +1527,14 @@ moves_loop: // When in check search starts from here
 
       // Detect non-capture evasions that are candidates to be pruned
       evasionPrunable =    InCheck
+                       &&  depth != DEPTH_ZERO
                        &&  bestValue > VALUE_MATED_IN_MAX_PLY
                        && !pos.capture(move);
 
       // Don't search moves with negative SEE values
       if (  (!InCheck || evasionPrunable)
           &&  type_of(move) != PROMOTION
-          &&  !pos.see_ge(move, VALUE_ZERO))
+          &&  !pos.see_ge(move))
           continue;
 
       // Speculative prefetch as early as possible
@@ -1621,7 +1633,8 @@ moves_loop: // When in check search starts from here
 
 
   // update_cm_stats() updates countermove and follow-up move history
-  void update_cm_stats(Stack* ss, Piece pc, Square s, Value bonus) {
+
+  void update_cm_stats(Stack* ss, Piece pc, Square s, int bonus) {
 
     for (int i : {1, 2, 4})
         if (is_ok((ss-i)->currentMove))
@@ -1632,7 +1645,7 @@ moves_loop: // When in check search starts from here
   // update_stats() updates move sorting heuristics when a new quiet best move is found
 
   void update_stats(const Position& pos, Stack* ss, Move move,
-                    Move* quiets, int quietsCnt, Value bonus) {
+                    Move* quiets, int quietsCnt, int bonus) {
 
     if (ss->killers[0] != move)
     {
@@ -1739,7 +1752,7 @@ string UCI::pv(const Position& pos, Depth depth, Value alpha, Value beta) {
 
   for (size_t i = 0; i < multiPV; ++i)
   {
-      bool updated = (i <= PVIdx);
+      bool updated = (i <= PVIdx && rootMoves[i].score != -VALUE_INFINITE);
 
       if (depth == ONE_PLY && !updated)
           continue;

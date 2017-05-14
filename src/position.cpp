@@ -62,6 +62,9 @@ namespace {
 
 const string PieceToChar(" PNBRQK  pnbrqk");
 
+const Piece Pieces[] = { W_PAWN, W_KNIGHT, W_BISHOP, W_ROOK, W_QUEEN, W_KING,
+                         B_PAWN, B_KNIGHT, B_BISHOP, B_ROOK, B_QUEEN, B_KING };
+
 // min_attacker() is a helper function used by see_ge() to locate the least
 // valuable attacker for the side to move, remove the attacker we just found
 // from the bitboards and scan for new X-ray attacks behind it.
@@ -72,7 +75,7 @@ PieceType min_attacker(const Bitboard* bb, Square to, Bitboard stmAttackers,
 
   Bitboard b = stmAttackers & bb[Pt];
   if (!b)
-      return min_attacker<Pt+1>(bb, to, stmAttackers, occupied, attackers);
+      return min_attacker<Pt + 1>(bb, to, stmAttackers, occupied, attackers);
 
   occupied ^= b & ~(b - 1);
 
@@ -89,36 +92,6 @@ PieceType min_attacker(const Bitboard* bb, Square to, Bitboard stmAttackers,
 template<>
 PieceType min_attacker<KING>(const Bitboard*, Square, Bitboard, Bitboard&, Bitboard&) {
   return KING; // No need to update bitboards: it is the last cycle
-}
-
-template<int Pt>
-PieceType min_attacker_anti(const Bitboard* bb, Square to, Bitboard stmAttackers,
-                       Bitboard& occupied, Bitboard& attackers) {
-
-  Bitboard b = stmAttackers & bb[Pt];
-  if (!b)
-      return min_attacker_anti<Pt-1>(bb, to, stmAttackers, occupied, attackers);
-
-  occupied ^= b & ~(b - 1);
-
-  if (Pt == PAWN || Pt == BISHOP || Pt == QUEEN || Pt == KING)
-      attackers |= attacks_bb<BISHOP>(to, occupied) & (bb[BISHOP] | bb[QUEEN]);
-
-  if (Pt == ROOK || Pt == QUEEN || Pt == KING)
-      attackers |= attacks_bb<ROOK>(to, occupied) & (bb[ROOK] | bb[QUEEN]);
-
-  attackers &= occupied; // After X-ray that may add already processed pieces
-  return (PieceType)Pt;
-}
-
-template<>
-PieceType min_attacker_anti<NO_PIECE_TYPE>(const Bitboard* bb, Square to, Bitboard stmAttackers,
-                       Bitboard& occupied, Bitboard& attackers) {
-
-  Bitboard b = stmAttackers & bb[KING];
-  if (b)
-      return min_attacker_anti<KING>(bb, to, stmAttackers, occupied, attackers);
-  return NO_PIECE_TYPE; // No need to update bitboards: it is the last cycle
 }
 
 } // namespace
@@ -182,7 +155,7 @@ void Position::init() {
 
 #ifdef THREECHECK
   for (Color c = WHITE; c <= BLACK; ++c)
-      for (CheckCount n : CheckCounts)
+      for (int n = 0; n < CHECKS_NB; ++n)
           Zobrist::checks[c][n] = rng.rand<Key>();
 #endif
 #ifdef CRAZYHOUSE
@@ -312,8 +285,16 @@ Position& Position::set(const string& fenStr, bool isChess960, Variant v, StateI
       Rank rank = relative_rank(c, RANK_1);
       Square ksq = square<KING>(c);
 #ifdef ANTI
+#ifdef LOSERS
+      if (is_anti() && !is_losers())
+#else
       if (is_anti())
+#endif
       {
+#ifdef SUICIDE
+          if (is_suicide())
+              continue;
+#endif
           // X-FEN is ambiguous if there are multiple kings
           // Assume the first king on the rank has castling rights
           const Square* kl = squares<KING>(c);
@@ -449,7 +430,11 @@ void Position::set_castling_right(Color c, Square kfrom, Square rfrom) {
 void Position::set_check_info(StateInfo* si) const {
 
 #ifdef ANTI
+#ifdef LOSERS
+  if (is_anti() && !is_losers())
+#else
   if (is_anti())
+#endif
   {
       si->blockersForKing[WHITE] = si->pinnersForKing[WHITE] = 0;
       si->blockersForKing[BLACK] = si->pinnersForKing[BLACK] = 0;
@@ -463,7 +448,11 @@ void Position::set_check_info(StateInfo* si) const {
 
   Square ksq = square<KING>(~sideToMove);
 #ifdef ANTI
+#ifdef LOSERS
+  if (is_anti() && !is_losers()) { // There are no checks in antichess
+#else
   if (is_anti()) { // There are no checks in antichess
+#endif
   si->checkSquares[PAWN]   = 0;
   si->checkSquares[KNIGHT] = 0;
   si->checkSquares[BISHOP] = 0;
@@ -516,21 +505,17 @@ void Position::set_state(StateInfo* si) const {
   si->nonPawnMaterial[WHITE] = si->nonPawnMaterial[BLACK] = VALUE_ZERO;
   si->psq = SCORE_ZERO;
   set_check_info(si);
-#ifdef RACE
-  if (is_race())
-  {
-      Rank r = rank_of(square<KING>(sideToMove));
-      si->checkersBB = r == RANK_8 ? 0 : Rank8BB & square<KING>(~sideToMove);
-  }
-  else
-#endif
 #ifdef HORDE
   if (is_horde() && is_horde_color(sideToMove))
       si->checkersBB = 0;
   else
 #endif
 #ifdef ANTI
+#ifdef LOSERS
+  if (is_anti() && !is_losers())
+#else
   if (is_anti())
+#endif
       si->checkersBB = 0;
   else
 #endif
@@ -775,9 +760,14 @@ bool Position::legal(Move m) const {
   assert(color_of(moved_piece(m)) == us);
 #ifdef ANTI
   // If a player can capture, that player must capture
-  // Is handled by move generator
+#ifdef LOSERS
+  assert(!is_anti() || is_losers() || capture(m) == can_capture());
+  if (is_anti() && !is_losers())
+#else
   assert(!is_anti() || capture(m) == can_capture());
   if (is_anti())
+#endif
+      // Is handled by move generator
       return true;
 #endif
 #ifdef HORDE
@@ -847,7 +837,7 @@ bool Position::legal(Move m) const {
   }
 
 #ifdef CRAZYHOUSE
-  if (type_of(m) == DROP)
+  if (is_house() && type_of(m) == DROP)
       return pieceCountInHand[us][type_of(moved_piece(m))] && empty(to_sq(m));
 #endif
 
@@ -928,12 +918,19 @@ bool Position::pseudo_legal(const Move m) const {
   }
 #endif
 #ifdef ANTI
-  if (is_anti() && !capture(m) && can_capture())
-      return false;
-#endif
+  if (is_anti() && !capture(m))
+  {
 #ifdef LOSERS
-  if (is_losers() && !capture(m) && can_capture_losers())
-      return false;
+      if (is_losers())
+      {
+          if (can_capture_losers())
+              return false;
+      }
+      else
+#endif
+      if (can_capture())
+          return false;
+  }
 #endif
 
   // Use a slower but simpler function for uncommon cases
@@ -946,7 +943,7 @@ bool Position::pseudo_legal(const Move m) const {
 
   // Is not a promotion, so promotion piece must be empty
 #ifdef CRAZYHOUSE
-  if (type_of(m) == DROP)
+  if (is_house() && type_of(m) == DROP)
       assert(promotion_type(m) - KNIGHT == 1);
   else
 #endif
@@ -960,7 +957,7 @@ bool Position::pseudo_legal(const Move m) const {
 
   // The destination square cannot be occupied by a friendly piece
 #ifdef CRAZYHOUSE
-  if (type_of(m) == DROP && (!pieceCountInHand[us][type_of(pc)] || !empty(to)))
+  if (is_house() && type_of(m) == DROP && (!pieceCountInHand[us][type_of(pc)] || !empty(to)))
       return false;
   else
 #endif
@@ -969,7 +966,7 @@ bool Position::pseudo_legal(const Move m) const {
 
   // Handle the special case of a pawn move
 #ifdef CRAZYHOUSE
-  if (type_of(m) == DROP) {} else
+  if (is_house() && type_of(m) == DROP) {} else
 #endif
   if (type_of(pc) == PAWN)
   {
@@ -986,7 +983,7 @@ bool Position::pseudo_legal(const Move m) const {
                && empty(to - pawn_push(us))))
           return false;
   }
-  else if (!(attacks_from(pc, from) & to))
+  else if (!(attacks_from(type_of(pc), from) & to))
       return false;
 
   // Evasions generator already takes care to avoid some kind of illegal moves
@@ -1029,7 +1026,7 @@ bool Position::gives_check(Move m) const {
   Square to = to_sq(m);
 
 #ifdef CRAZYHOUSE
-  if (type_of(m) == DROP)
+  if (is_house() && type_of(m) == DROP)
       return st->checkSquares[type_of(dropped_piece(m))] & to;
 #endif
 #ifdef HORDE
@@ -1037,7 +1034,11 @@ bool Position::gives_check(Move m) const {
       return false;
 #endif
 #ifdef ANTI
+#ifdef LOSERS
+  if (is_anti() && !is_losers())
+#else
   if (is_anti())
+#endif
       return false;
 #endif
 #ifdef ATOMIC
@@ -1080,7 +1081,7 @@ bool Position::gives_check(Move m) const {
 
   // Is there a direct check?
 #ifdef CRAZYHOUSE
-  if (st->checkSquares[type_of(type_of(m) == DROP ? dropped_piece(m) : piece_on(from))] & to)
+  if (st->checkSquares[type_of(is_house() && type_of(m) == DROP ? dropped_piece(m) : piece_on(from))] & to)
 #else
   if (st->checkSquares[type_of(piece_on(from))] & to)
 #endif
@@ -1088,7 +1089,7 @@ bool Position::gives_check(Move m) const {
 
   // Is there a discovered check?
 #ifdef CRAZYHOUSE
-  if (type_of(m) == DROP) {} else
+  if (is_house() && type_of(m) == DROP) {} else
 #endif
   if (   (discovered_check_candidates() & from)
       && !aligned(from, to, square<KING>(~sideToMove)))
@@ -1100,7 +1101,7 @@ bool Position::gives_check(Move m) const {
       return false;
 
   case PROMOTION:
-      return attacks_bb(Piece(promotion_type(m)), to, pieces() ^ from) & square<KING>(~sideToMove);
+      return attacks_bb(promotion_type(m), to, pieces() ^ from) & square<KING>(~sideToMove);
 
   // En passant capture with check? We have already handled the case
   // of direct checks and ordinary discovered check, so the only case we
@@ -1143,7 +1144,11 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
   assert(is_ok(m));
   assert(&newSt != st);
 #ifdef ANTI
+#ifdef LOSERS
+  assert(!is_anti() || is_losers() || !givesCheck);
+#else
   assert(!is_anti() || !givesCheck);
+#endif
 #endif
 
   ++nodes;
@@ -1167,7 +1172,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
   Square from = from_sq(m);
   Square to = to_sq(m);
 #ifdef CRAZYHOUSE
-  Piece pc = type_of(m) == DROP ? dropped_piece(m) : piece_on(from);
+  Piece pc = is_house() && type_of(m) == DROP ? dropped_piece(m) : piece_on(from);
 #else
   Piece pc = piece_on(from);
 #endif
@@ -1176,7 +1181,11 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
   assert(color_of(pc) == us);
   assert(captured == NO_PIECE || color_of(captured) == (type_of(m) != CASTLING ? them : us));
 #ifdef ANTI
+#ifdef LOSERS
+  assert((is_anti() && !is_losers()) || type_of(captured) != KING);
+#else
   assert(is_anti() || type_of(captured) != KING);
+#endif
 #else
   assert(type_of(captured) != KING);
 #endif
@@ -1295,7 +1304,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 #endif
   // Update hash key
 #ifdef CRAZYHOUSE
-  if (type_of(m) == DROP)
+  if (is_house() && type_of(m) == DROP)
   {
       k ^= Zobrist::psq[pc][to] ^ Zobrist::inHand[pc][pieceCountInHand[color_of(pc)][type_of(pc)] - 1]
           ^ Zobrist::inHand[pc][pieceCountInHand[color_of(pc)][type_of(pc)]];
@@ -1315,7 +1324,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 
   // Update castling rights if needed
 #ifdef CRAZYHOUSE
-  if (type_of(m) == DROP) {} else
+  if (is_house() && type_of(m) == DROP) {} else
 #endif
   if (st->castlingRights && (castlingRightsMask[from] | castlingRightsMask[to]))
   {
@@ -1348,8 +1357,11 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 #endif
   // Move the piece. The tricky Chess960 castling is handled earlier
 #ifdef CRAZYHOUSE
-  if (type_of(m) == DROP)
+  if (is_house() && type_of(m) == DROP)
+  {
       drop_piece(pc, to);
+      st->materialKey ^= Zobrist::psq[pc][pieceCount[pc]-1];
+  }
   else
 #endif
   if (type_of(m) != CASTLING)
@@ -1377,7 +1389,11 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 
           assert(relative_rank(us, to) == RANK_8);
 #ifdef ANTI
+#ifdef LOSERS
+          assert(type_of(promotion) >= KNIGHT && type_of(promotion) <= (is_anti() && !is_losers() ? KING : QUEEN));
+#else
           assert(type_of(promotion) >= KNIGHT && type_of(promotion) <= (is_anti() ? KING : QUEEN));
+#endif
 #else
           assert(type_of(promotion) >= KNIGHT && type_of(promotion) <= QUEEN);
 #endif
@@ -1413,7 +1429,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
       else
 #endif
 #ifdef CRAZYHOUSE
-      if (type_of(m) == DROP)
+      if (is_house() && type_of(m) == DROP)
           st->pawnKey ^= Zobrist::psq[pc][to];
       else
 #endif
@@ -1442,16 +1458,11 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
   // Update the key with the final value
   st->key = k;
 
-#ifdef RACE
-  if (is_race())
-      st->checkersBB = Rank8BB & square<KING>(us);
-  else
-#endif
   // Calculate checkers bitboard (if move gives check)
   st->checkersBB = givesCheck ? attackers_to(square<KING>(them)) & pieces(us) : 0;
 
 #ifdef CRAZYHOUSE
-  if (is_house() && type_of(m) != DROP && is_promoted(from))
+  if ((!is_house() || type_of(m) != DROP) && is_promoted(from))
       promotedPieces = (promotedPieces - from) | to;
 #endif
 
@@ -1484,12 +1495,16 @@ void Position::undo_move(Move m) {
 
   assert(empty(to) || color_of(piece_on(to)) == us);
 #ifdef CRAZYHOUSE
-  assert(type_of(m) == DROP || empty(from) || type_of(m) == CASTLING);
+  assert((is_house() && type_of(m) == DROP) || empty(from) || type_of(m) == CASTLING);
 #else
   assert(empty(from) || type_of(m) == CASTLING);
 #endif
 #ifdef ANTI
+#ifdef LOSERS
+  assert((is_anti() && !is_losers()) || type_of(st->capturedPiece) != KING);
+#else
   assert(is_anti() || type_of(st->capturedPiece) != KING);
+#endif
 #else
   assert(type_of(st->capturedPiece) != KING);
 #endif
@@ -1503,7 +1518,11 @@ void Position::undo_move(Move m) {
 #endif
       assert(type_of(pc) == promotion_type(m));
 #ifdef ANTI
+#ifdef LOSERS
+      assert(type_of(pc) >= KNIGHT && type_of(pc) <= (is_anti() && !is_losers() ? KING : QUEEN));
+#else
       assert(type_of(pc) >= KNIGHT && type_of(pc) <= (is_anti() ? KING : QUEEN));
+#endif
 #else
       assert(type_of(pc) >= KNIGHT && type_of(pc) <= QUEEN);
 #endif
@@ -1533,7 +1552,7 @@ void Position::undo_move(Move m) {
       else
 #endif
 #ifdef CRAZYHOUSE
-      if (type_of(m) == DROP)
+      if (is_house() && type_of(m) == DROP)
           undrop_piece(pc, to); // Remove the dropped piece
       else
 #endif
@@ -1664,7 +1683,7 @@ Key Position::key_after(Move m) const {
   Square from = from_sq(m);
   Square to = to_sq(m);
 #ifdef CRAZYHOUSE
-  Piece pc = type_of(m) == DROP ? dropped_piece(m) : piece_on(from);
+  Piece pc = is_house() && type_of(m) == DROP ? dropped_piece(m) : piece_on(from);
 #else
   Piece pc = piece_on(from);
 #endif
@@ -1698,7 +1717,7 @@ Key Position::key_after(Move m) const {
   }
 
 #ifdef CRAZYHOUSE
-  if (type_of(m) == DROP)
+  if (is_house() && type_of(m) == DROP)
       return k ^ Zobrist::psq[pc][to] ^ Zobrist::inHand[pc][pieceCountInHand[color_of(pc)][type_of(pc)]]
             ^ Zobrist::inHand[pc][pieceCountInHand[color_of(pc)][type_of(pc)] - 1];
 #endif
@@ -1740,7 +1759,7 @@ bool Position::see_ge(Move m, Value v) const {
 #endif
 
 #ifdef THREECHECK
-  if (is_three_check() && gives_check(m))
+  if (is_three_check() && color_of(moved_piece(m)) == sideToMove && gives_check(m))
       return true;
 #endif
 
@@ -1752,8 +1771,8 @@ bool Position::see_ge(Move m, Value v) const {
 
   Square from = from_sq(m), to = to_sq(m);
 #ifdef CRAZYHOUSE
-  PieceType nextVictim = type_of(type_of(m) == DROP ? dropped_piece(m) : piece_on(from));
-  Color stm = ~color_of(type_of(m) == DROP ? dropped_piece(m) : piece_on(from)); // First consider opponent's move
+  PieceType nextVictim = type_of(is_house() && type_of(m) == DROP ? dropped_piece(m) : piece_on(from));
+  Color stm = ~color_of(is_house() && type_of(m) == DROP ? dropped_piece(m) : piece_on(from)); // First consider opponent's move
 #else
   PieceType nextVictim = type_of(piece_on(from));
   Color stm = ~color_of(piece_on(from)); // First consider opponent's move
@@ -1815,7 +1834,11 @@ bool Position::see_ge(Move m, Value v) const {
       return false;
 
 #ifdef ANTI
+#ifdef LOSERS
+  if (is_anti() && !is_losers()) {} else
+#else
   if (is_anti()) {} else
+#endif
 #endif
   if (nextVictim == KING)
       return true;
@@ -1827,7 +1850,7 @@ bool Position::see_ge(Move m, Value v) const {
 
   bool relativeStm = true; // True if the opponent is to move
 #ifdef CRAZYHOUSE
-  if (type_of(m) == DROP)
+  if (is_house() && type_of(m) == DROP)
       occupied ^= pieces() ^ to;
   else
 #endif
@@ -1850,16 +1873,15 @@ bool Position::see_ge(Move m, Value v) const {
           return relativeStm;
 
       // Locate and remove the next least valuable attacker
-#ifdef ANTI
-      if (is_anti()) // Antichess: QUEEN-ROOK-BISHOP-KNIGHT-PAWN-KING
-          nextVictim = min_attacker_anti<QUEEN>(byTypeBB, to, stmAttackers, occupied, attackers);
-      else
-#endif
       nextVictim = min_attacker<PAWN>(byTypeBB, to, stmAttackers, occupied, attackers);
 
       // Don't allow pinned pieces to attack pieces except the king
 #ifdef ANTI
+#ifdef LOSERS
+      if (is_anti() && !is_losers()) {} else
+#else
       if (is_anti()) {} else
+#endif
 #endif
       if (nextVictim == KING)
           return relativeStm == bool(attackers & pieces(~stm));
@@ -1966,8 +1988,15 @@ bool Position::pos_is_ok(int* failedStep) const {
       {
           Square wksq = square<KING>(WHITE), bksq = square<KING>(BLACK);
 #ifdef ANTI
+#ifdef LOSERS
+          if (is_anti() && !is_losers())
+#else
           if (is_anti())
+#endif
           {
+#ifdef LOSERS
+              if (is_losers()) {} else
+#endif
               if ((sideToMove != WHITE && sideToMove != BLACK)
                   || (ep_square() != SQ_NONE && relative_rank(sideToMove, ep_square()) != RANK_6))
                   return false;
@@ -2004,7 +2033,11 @@ bool Position::pos_is_ok(int* failedStep) const {
       if (step == King)
       {
 #ifdef ANTI
+#ifdef LOSERS
+          if (is_anti() && !is_losers()) {} else
+#else
           if (is_anti()) {} else
+#endif
 #endif
 #ifdef HORDE
           if (is_horde())
@@ -2053,7 +2086,6 @@ bool Position::pos_is_ok(int* failedStep) const {
       }
 
       if (step == Lists)
-      {
           for (Piece pc : Pieces)
           {
               if (pieceCount[pc] != popcount(pieces(color_of(pc), type_of(pc))))
@@ -2063,15 +2095,6 @@ bool Position::pos_is_ok(int* failedStep) const {
                   if (board[pieceList[pc][i]] != pc || index[pieceList[pc][i]] != i)
                       return false;
           }
-#ifdef CRAZYHOUSE
-          if (is_house()) {} else
-#endif
-#ifdef HORDE
-          if (is_horde()) {} else
-#endif
-          if (pieceCount[PAWN] > FILE_NB)
-              return false;
-      }
 
       if (step == Castling)
           for (Color c = WHITE; c <= BLACK; ++c)
