@@ -28,6 +28,7 @@
 #include "position.h"
 #include "search.h"
 #include "thread.h"
+#include "tt.h"
 #include "timeman.h"
 #include "uci.h"
 
@@ -55,6 +56,9 @@ namespace {
 #ifdef KOTH
   "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
 #endif
+#ifdef LOSERS
+  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+#endif
 #ifdef RACE
   "8/8/8/8/8/8/krbnNBRK/qrbnNBRQ w - - 0 1",
 #endif
@@ -63,9 +67,6 @@ namespace {
 #endif
 #ifdef THREECHECK
   "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 3+3 0 1",
-#endif
-#ifdef LOSERS
-  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
 #endif
 #ifdef SUICIDE
   "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1",
@@ -180,6 +181,14 @@ namespace {
     Threads.start_thinking(pos, States, limits);
   }
 
+  // On ucinewgame following steps are needed to reset the state
+  void newgame() {
+
+    TT.resize(Options["Hash"]);
+    Search::clear();
+    Time.availableNodes = 0;
+  }
+
 } // namespace
 
 
@@ -187,6 +196,7 @@ void UCI::command(string cmd) {
       static bool initialized = false;
       static Position pos;
       if (!initialized) {
+          newgame(); // Implied ucinewgame before the first position command
           pos.set(StartFENs[CHESS_VARIANT], false, CHESS_VARIANT, &States->back(), Threads.main());
           initialized = true;
       }
@@ -218,11 +228,7 @@ void UCI::command(string cmd) {
                     << "\n"       << Options
                     << "\nuciok"  << sync_endl;
 
-      else if (token == "ucinewgame")
-      {
-          Search::clear();
-          Time.availableNodes = 0;
-      }
+      else if (token == "ucinewgame") newgame();
       else if (token == "isready")    sync_cout << "readyok" << sync_endl;
       else if (token == "go")         go(pos, is);
       else if (token == "position")   position(pos, is);
