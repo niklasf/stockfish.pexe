@@ -1,6 +1,6 @@
 <html>
   <body>
-    <embed id="stockfish" width="0" height="0" src="stockfish.nmf" type="application/x-pnacl">
+    <object id="stockfish" width="0" height="0" data="stockfish.nmf" type="application/x-pnacl"></object>
     <div id="content">
       <h1>Stockfish.pexe test page</h1>
       <form id="start" onsubmit="start(); return false;">
@@ -38,7 +38,9 @@ stockfish.addEventListener('message', function(e) {
     out.classList.add('error');
   });
 });
-send('uci');
+stockfish.addEventListener('load', function() {
+  send('uci');
+});
 
 var settings = ['threads','hash','multipv','position'];
 settings.forEach(function(k) { var v = localStorage.getItem(k); if (v) document.getElementById(k).value = v; });
