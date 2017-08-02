@@ -41,7 +41,7 @@ ThreadPool Threads; // Global object
 Thread::Thread() {
 
   exit = false;
-  maxPly = 0;
+  selDepth = 0;
   nodes = tbHits = 0;
   idx = Threads.size(); // Start from 0
 
@@ -206,7 +206,7 @@ void ThreadPool::start_thinking(Position& pos, StateListPtr& states,
 
   main()->wait_for_search_finished();
 
-  Search::Signals.stopOnPonderhit = Search::Signals.stop = false;
+  stopOnPonderhit = stop = false;
   Search::Limits = limits;
   Search::RootMoves rootMoves;
 
@@ -226,7 +226,6 @@ void ThreadPool::start_thinking(Position& pos, StateListPtr& states,
 
   for (Thread* th : Threads)
   {
-      th->maxPly = 0;
       th->nodes = 0;
       th->tbHits = 0;
       th->rootDepth = DEPTH_ZERO;
