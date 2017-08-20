@@ -27,8 +27,9 @@ void initialize() {
   Bitbases::init();
   Search::init();
   Pawns::init();
-  Threads.init();
   TT.resize(Options["Hash"]);
+  Threads.init(Options["Threads"]);
+  Search::clear(); // After threads are up
 }
 
 class CaptureBuf : public std::streambuf {
