@@ -70,31 +70,31 @@ namespace {
   const int razor_margin[VARIANT_NB][4] = {
   { 0, 570, 603, 554 },
 #ifdef ANTI
-  { 1917, 2201, 2334, 2407 },
+  { 0, 2201, 2334, 2407 },
 #endif
 #ifdef ATOMIC
-  { 1867, 2341, 2501, 2218 },
+  { 0, 2341, 2501, 2218 },
 #endif
 #ifdef CRAZYHOUSE
-  { 475, 590, 651, 622 },
+  { 0, 590, 651, 622 },
 #endif
 #ifdef HORDE
-  { 464, 706, 625, 555 },
+  { 0, 706, 625, 555 },
 #endif
 #ifdef KOTH
-  { 524, 587, 676, 582 },
+  { 0, 587, 676, 582 },
 #endif
 #ifdef LOSERS
-  { 1981, 2335, 2351, 2142 },
+  { 0, 2335, 2351, 2142 },
 #endif
 #ifdef RACE
-  { 1043, 1016, 1004, 1012 },
+  { 0, 1016, 1004, 1012 },
 #endif
 #ifdef RELAY
-  { 483, 570, 603, 554 },
+  { 0, 570, 603, 554 },
 #endif
 #ifdef THREECHECK
-  { 1989, 2060, 2257, 2174 },
+  { 0, 2060, 2257, 2174 },
 #endif
   };
   const int futility_margin_factor[VARIANT_NB] = {
@@ -192,8 +192,6 @@ namespace {
   // Futility and reductions lookup tables, initialized at startup
   int FutilityMoveCounts[VARIANT_NB][2][16]; // [improving][depth]
   int Reductions[2][2][64][64];  // [pv][improving][depth][moveNumber]
-  // Threshold used for countermoves based pruning
-  const int CounterMovePruneThreshold = 0;
 
   template <bool PvNode> Depth reduction(bool i, Depth d, int mn) {
     return Reductions[PvNode][i][std::min(d / ONE_PLY, 63)][std::min(mn, 63)] * ONE_PLY;
@@ -360,16 +358,7 @@ void Search::clear() {
   TT.clear();
 
   for (Thread* th : Threads)
-  {
-      th->counterMoves.fill(MOVE_NONE);
-      th->mainHistory.fill(0);
-
-      for (auto& to : th->contHistory)
-          for (auto& h : to)
-              h.fill(0);
-
-      th->contHistory[NO_PIECE][0].fill(CounterMovePruneThreshold - 1);
-  }
+      th->clear();
 
   Threads.main()->callsCnt = 0;
   Threads.main()->previousScore = VALUE_INFINITE;
@@ -459,7 +448,9 @@ void MainThread::search() {
           Depth depthDiff = th->completedDepth - bestThread->completedDepth;
           Value scoreDiff = th->rootMoves[0].score - bestThread->rootMoves[0].score;
 
-          if (scoreDiff > 0 && depthDiff >= 0)
+          // Select the thread with the best score, always if it is a mate
+          if (    scoreDiff > 0
+              && (depthDiff >= 0 || th->rootMoves[0].score >= VALUE_MATE_IN_MAX_PLY))
               bestThread = th;
 #ifdef USELONGESTPV
           longestPlies = std::max(th->rootMoves[0].pv.size(), longestPlies);
@@ -657,15 +648,19 @@ void Thread::search() {
           // Sort the PV lines searched so far and update the GUI
           std::stable_sort(rootMoves.begin(), rootMoves.begin() + PVIdx + 1);
 
-          if (!mainThread)
-              continue;
-
-          if (Threads.stop || PVIdx + 1 == multiPV || Time.elapsed() > 3000)
+          if (    mainThread
+              && (Threads.stop || PVIdx + 1 == multiPV || Time.elapsed() > 3000))
               sync_cout << UCI::pv(rootPos, rootDepth, alpha, beta) << sync_endl;
       }
 
       if (!Threads.stop)
           completedDepth = rootDepth;
+
+      // Have we found a "mate in x"?
+      if (   Limits.mate
+          && bestValue >= VALUE_MATE_IN_MAX_PLY
+          && VALUE_MATE - bestValue <= 2 * Limits.mate)
+          Threads.stop = true;
 
       if (!mainThread)
           continue;
@@ -675,12 +670,6 @@ void Thread::search() {
       if (skill.enabled() && skill.time_to_pick(rootDepth))
           skill.pick_best(multiPV);
 #endif
-
-      // Have we found a "mate in x"?
-      if (   Limits.mate
-          && bestValue >= VALUE_MATE_IN_MAX_PLY
-          && VALUE_MATE - bestValue <= 2 * Limits.mate)
-          Threads.stop = true;
 
       // Do we have time for the next iteration? Can we stop searching now?
       if (Limits.use_time_management())
@@ -923,11 +912,6 @@ namespace {
     if (   !PvNode
         &&  eval >= beta
         && (ss->staticEval >= beta - 35 * (depth / ONE_PLY - 6) || depth >= 13 * ONE_PLY)
-#ifdef CRAZYHOUSE
-        // Do not bother with null-move search if opponent can drop pieces
-        && (!pos.is_house() || (eval < 2 * VALUE_KNOWN_WIN
-            && !(depth > 4 * ONE_PLY && pos.count_in_hand<ALL_PIECES>(~pos.side_to_move()))))
-#endif
         &&  pos.non_pawn_material(pos.side_to_move()))
     {
 
@@ -1138,8 +1122,7 @@ moves_loop: // When in check search starts from here
               }
 
               // Reduced depth of the next LMR search
-              int lmrDepth;
-              lmrDepth = std::max(newDepth - reduction<PvNode>(improving, depth, moveCount), DEPTH_ZERO) / ONE_PLY;
+              int lmrDepth = std::max(newDepth - reduction<PvNode>(improving, depth, moveCount), DEPTH_ZERO) / ONE_PLY;
 
               // Countermoves based pruning
               if (   lmrDepth < 3
@@ -1212,6 +1195,10 @@ moves_loop: // When in check search starts from here
               r -= r ? ONE_PLY : DEPTH_ZERO;
           else
           {
+              // Decrease reduction if opponent's move count is high
+              if ((ss-1)->moveCount > 15)
+                  r -= ONE_PLY;
+
               // Increase reduction if ttMove is a capture
               if (ttCapture)
                   r += ONE_PLY;
@@ -1500,8 +1487,7 @@ moves_loop: // When in check search starts from here
     // to search the moves. Because the depth is <= 0 here, only captures,
     // queen promotions and checks (only if depth >= DEPTH_QS_CHECKS) will
     // be generated.
-    const PieceToHistory* contHist[4] = {};
-    MovePicker mp(pos, ttMove, depth, &pos.this_thread()->mainHistory, contHist, to_sq((ss-1)->currentMove));
+    MovePicker mp(pos, ttMove, depth, &pos.this_thread()->mainHistory, to_sq((ss-1)->currentMove));
 
     // Loop through the moves until no moves remain or a beta cutoff occurs
     while ((move = mp.next_move()) != MOVE_NONE)
@@ -1583,8 +1569,6 @@ moves_loop: // When in check search starts from here
                          : -qsearch<NT, false>(pos, ss+1, -beta, -alpha, depth - ONE_PLY);
       pos.undo_move(move);
 
-      assert(value > -VALUE_INFINITE);
-      assert(value < VALUE_INFINITE);
       assert(value > -VALUE_INFINITE && value < VALUE_INFINITE);
 
       // Check for a new best move
