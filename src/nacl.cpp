@@ -28,7 +28,7 @@ void initialize() {
   Search::init();
   Pawns::init();
   TT.resize(Options["Hash"]);
-  Threads.init(Options["Threads"]);
+  Threads.set(Options["Threads"]);
   Search::clear(); // After threads are up
 }
 
