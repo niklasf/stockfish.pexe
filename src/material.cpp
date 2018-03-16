@@ -152,18 +152,6 @@ namespace {
       {-185,    0, 122,   137,  -134,   0 }  // Queen
     },
 #endif
-#ifdef RELAY
-    {
-      //            OUR PIECES
-      // pair pawn knight bishop rook queen
-      {1667                               }, // Bishop pair
-      {  40,    2                         }, // Pawn
-      {  32,  255,  -3                    }, // Knight      OUR PIECES
-      {   0,  104,   4,    0              }, // Bishop
-      { -26,   -2,  47,   105,  -149      }, // Rook
-      {-185,   24, 122,   137,  -134,   0 }  // Queen
-    },
-#endif
 #ifdef THREECHECK
     {
       //            OUR PIECES
@@ -179,13 +167,14 @@ namespace {
 #ifdef TWOKINGS
     {
       //            OUR PIECES
-      // pair pawn knight bishop rook queen
-      {1667                               }, // Bishop pair
-      {  40,    0                         }, // Pawn
-      {  32,  255,  -3                    }, // Knight      OUR PIECES
-      {   0,  104,   4,    0              }, // Bishop
-      { -26,   -2,  47,   105,  -149      }, // Rook
-      {-185,   24, 122,   137,  -134,   0 }  // Queen
+      // pair pawn knight bishop rook queen king
+      {1667                                    }, // Bishop pair
+      {  40,    0                              }, // Pawn
+      {  32,  255,  -3                         }, // Knight      OUR PIECES
+      {   0,  104,   4,    0                   }, // Bishop
+      { -26,   -2,  47,   105,  -149           }, // Rook
+      {-185,   24, 122,   137,  -134,   0      }, // Queen
+      { -50,  156,  40,    61,   71,  -77,  32 }  // King
     },
 #endif
   };
@@ -323,18 +312,6 @@ namespace {
       { 101,    0, -37,   141,  268,    0 }  // Queen
     },
 #endif
-#ifdef RELAY
-    {
-      //           THEIR PIECES
-      // pair pawn knight bishop rook queen
-      {   0                               }, // Bishop pair
-      {  36,    0                         }, // Pawn
-      {   9,   63,   0                    }, // Knight      OUR PIECES
-      {  59,   65,  42,     0             }, // Bishop
-      {  46,   39,  24,   -24,    0       }, // Rook
-      { 101,  100, -37,   141,  268,    0 }  // Queen
-    },
-#endif
 #ifdef THREECHECK
     {
       //           THEIR PIECES
@@ -350,13 +327,14 @@ namespace {
 #ifdef TWOKINGS
     {
       //           THEIR PIECES
-      // pair pawn knight bishop rook queen
-      {   0                               }, // Bishop pair
-      {  36,    0                         }, // Pawn
-      {   9,   63,   0                    }, // Knight      OUR PIECES
-      {  59,   65,  42,     0             }, // Bishop
-      {  46,   39,  24,   -24,    0       }, // Rook
-      { 101,  100, -37,   141,  268,    0 }  // Queen
+      // pair pawn knight bishop rook queen king
+      {   0                                    }, // Bishop pair
+      {  36,    0                              }, // Pawn
+      {   9,   63,   0                         }, // Knight      OUR PIECES
+      {  59,   65,  42,     0                  }, // Bishop
+      {  46,   39,  24,   -24,    0            }, // Rook
+      { 101,  100, -37,   141,  268,    0      }, // Queen
+      { -16, -116,  -4,   -92,   65,  -96,   0 }  // King
     },
 #endif
   };
@@ -398,7 +376,7 @@ namespace {
   }
 #endif
 
-  bool is_KBPsKs(const Position& pos, Color us) {
+  bool is_KBPsK(const Position& pos, Color us) {
     return   pos.non_pawn_material(us) == BishopValueMg
           && pos.count<BISHOP>(us) == 1
           && pos.count<PAWN  >(us) >= 1;
@@ -433,6 +411,9 @@ namespace {
 #endif
 #ifdef HORDE
                       pos.is_horde() ? KING :
+#endif
+#ifdef TWOKINGS
+                      pos.is_two_kings() ? KING :
 #endif
                       QUEEN;
 
@@ -549,7 +530,7 @@ Entry* probe(const Position& pos) {
   // case we don't return after setting the function.
   for (Color c = WHITE; c <= BLACK; ++c)
   {
-    if (is_KBPsKs(pos, c))
+    if (is_KBPsK(pos, c))
         e->scalingFunction[c] = &ScaleKBPsK[c];
 
     else if (is_KQKRPs(pos, c))
