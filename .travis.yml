@@ -10,8 +10,7 @@ install:
 - unzip nacl_sdk.zip
 - cd nacl_sdk
 - patch -p0 < ../urlopen.patch
-- ./naclsdk update > /dev/null
-- ./naclsdk list
+- ./naclsdk install pepper_49 > /dev/null
 - cd ..
 - export NACL_SDK_ROOT=$TRAVIS_BUILD_DIR/nacl_sdk/pepper_49
 
