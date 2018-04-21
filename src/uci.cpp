@@ -18,6 +18,7 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <algorithm>
 #include <cassert>
 #include <iostream>
 #include <sstream>
@@ -28,8 +29,8 @@
 #include "position.h"
 #include "search.h"
 #include "thread.h"
-#include "tt.h"
 #include "timeman.h"
+#include "tt.h"
 #include "uci.h"
 
 using namespace std;
@@ -148,7 +149,8 @@ namespace {
     if (Options.count(name))
     {
         Options[name] = value;
-        if (name == "UCI_Variant") {
+        std::transform(name.begin(), name.end(), name.begin(), ::tolower);
+        if (name == "uci_variant") {
             Variant variant = UCI::variant_from_name(value);
             sync_cout << "info string variant " << (string)Options["UCI_Variant"] << " startpos " << StartFENs[variant] << sync_endl;
         }

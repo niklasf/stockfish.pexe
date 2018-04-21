@@ -103,7 +103,7 @@ namespace PSQT {
 // type on a given square a (middlegame, endgame) score pair is assigned. Table
 // is defined for files A..D and white side: it is symmetric for black side and
 // second half of the files.
-const Score Bonus[VARIANT_NB][PIECE_TYPE_NB][RANK_NB][int(FILE_NB) / 2] = {
+constexpr Score Bonus[VARIANT_NB][PIECE_TYPE_NB][RANK_NB][int(FILE_NB) / 2] = {
   {
     { },
     { // Pawn
@@ -895,8 +895,8 @@ for (Variant var = CHESS_VARIANT; var < VARIANT_NB; ++var)
 #ifdef RACE
           if (var == RACE_VARIANT)
           {
-              psq[var][ pc][horizontal_flip(s)] = score + Bonus[var][pc][rank_of(s)][f];
-              psq[var][~pc][~s] = -psq[var][pc][s];
+              psq[var][ pc][s] = score + Bonus[var][pc][rank_of(s)][f];
+              psq[var][~pc][horizontal_flip(s)] = -psq[var][pc][s];
           }
           else
 #endif
