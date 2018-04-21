@@ -10,6 +10,7 @@ install:
 - unzip nacl_sdk.zip
 - cp cacerts.txt nacl_sdk/sdk_tools/cacerts.txt
 - cd nacl_sdk
+- ./naclsdk version
 - ./naclsdk install pepper_49 > /dev/null
 - cd ..
 - export NACL_SDK_ROOT=$TRAVIS_BUILD_DIR/nacl_sdk/pepper_49
