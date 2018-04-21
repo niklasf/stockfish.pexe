@@ -9,9 +9,12 @@ install:
 - wget https://storage.googleapis.com/nativeclient-mirror/nacl/nacl_sdk/nacl_sdk.zip
 - unzip nacl_sdk.zip
 - cd nacl_sdk
-- ./naclsdk version
-- cp ../cacerts.txt sdk_tools/cacerts.txt
-- ./naclsdk install pepper_49 > /dev/null
+- ./naclsdk version || cp ../cacerts.txt sdk_tools/cacerts.txt
+- ./naclsdk version || cp ../cacerts.txt sdk_tools/cacerts.txt
+- ./naclsdk install pepper_49 > /dev/null || cp ../cacerts.txt sdk_tools/cacerts.txt
+- ./naclsdk install pepper_49 > /dev/null || cp ../cacerts.txt sdk_tools/cacerts.txt
+- ./naclsdk update || cp ../cacerts.txt sdk_tools/cacerts.txt
+- ./naclsdk update || cp ../cacerts.txt sdk_tools/cacerts.txt
 - cd ..
 - export NACL_SDK_ROOT=$TRAVIS_BUILD_DIR/nacl_sdk/pepper_49
 
