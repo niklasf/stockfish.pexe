@@ -8,6 +8,7 @@ before_install:
 install:
 - wget https://storage.googleapis.com/nativeclient-mirror/nacl/nacl_sdk/nacl_sdk.zip
 - unzip nacl_sdk.zip
+- cp cacerts.txt nacl_sdk/sdk_tools/cacerts.txt
 - cd nacl_sdk
 - ./naclsdk install pepper_49 > /dev/null
 - cd ..
