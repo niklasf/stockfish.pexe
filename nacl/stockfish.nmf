@@ -2,10 +2,10 @@
   "program": {
     "portable": {
       "pnacl-translate": {
-        "url": "stockfish.pexe?v=PEXE_VERSION"
+        "url": "stockfish.pexe"
       },
       "pnacl-debug": {
-        "url": "stockfish.bc?v=BC_VERSION",
+        "url": "stockfish.bc",
         "optlevel": 0
       }
     }

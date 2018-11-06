@@ -1,0 +1,23 @@
+{
+  "name": "stockfish.pexe",
+  "version": "9.0.0",
+  "description": "PNaCl port of the strong chess engine Stockfish with multi-variant support",
+  "keywords": ["chess", "stockfish", "emscripten", "lichess", "pnacl"],
+  "author": "Niklas Fiekas <niklas.fiekas@backscattering.de>",
+  "license": "GPL-3.0",
+  "repository": "github:niklasf/stockfish.pexe",
+  "homepage": "https://github.com/niklasf/stockfish.pexe#readme",
+  "bugs": {
+    "url": "https://github.com/niklasf/stockfish.pexe/issues",
+    "email": "niklas.fiekas@backscattering.de"
+  },
+  "files": [
+    "Copying.txt",
+    "stockfish.nmf",
+    "stockfish.pexe",
+    "stockfish.bc",
+  ],
+  "scripts": {
+    "prepare": "make"
+  }
+}

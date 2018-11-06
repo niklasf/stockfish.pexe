@@ -17,9 +17,6 @@ CXXFLAGS = -O3 -std=gnu++11 \
 
 LDFLAGS = -L$(NACL_SDK_ROOT)/lib/pnacl/Release -O3 -lppapi_cpp -lppapi -lpthread
 
-stockfish.nmf: stockfish.pexe stockfish.bc stockfish.nmf.in
-	sed "s/PEXE_VERSION/$(shell sha256sum stockfish.pexe | cut -c1-8)/" stockfish.nmf.in | sed "s/BC_VERSION/$(shell sha256sum stockfish.bc | cut -c1-8)/" > stockfish.nmf
-
 stockfish.pexe: stockfish.bc
 	$(PNACL_FINALIZE) --compress -o $@ $<
 

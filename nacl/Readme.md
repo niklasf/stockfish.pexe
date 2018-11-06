@@ -13,34 +13,6 @@ Unmaintained, since PNaCl is deprecated and will be replaced by [WebAssembly](ht
 
 About 500 KB uncompressed, 400 KB gzipped.
 
-Usage
------
-
-See ``nacl/index.html`` for an example.
-
-Building
---------
-
-1. Install the [NaCl SDK](https://developer.chrome.com/native-client/sdk/download)
-   and setup an environment variable
-   ``NACL_SDK_ROOT=path/to/nacl_sdk/pepper_49``
-2. ``cd nacl``
-3. ``make``
-
-Running
--------
-
-- Start an HTTP server, for instance ``python3 -m http.server ./nacl``
-- Browse http://127.0.0.1:8080/ in chrome
-
-Changes to original Stockfish
------------------------------
-
-* Replace ``src/main.cpp`` with ``src/nacl.cpp``.
-* Turn ``UCI::loop`` into ``UCI::command``.
-* Remove Syzygy tablebases.
-* Recover from (all but minimum) transposition table allocation failures.
-
 Acknowledgements
 ----------------
 
