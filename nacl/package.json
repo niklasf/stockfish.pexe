@@ -15,7 +15,7 @@
     "Copying.txt",
     "stockfish.nmf",
     "stockfish.pexe",
-    "stockfish.bc",
+    "stockfish.bc"
   ],
   "scripts": {
     "prepare": "make"
