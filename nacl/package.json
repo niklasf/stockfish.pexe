@@ -1,6 +1,6 @@
 {
   "name": "stockfish.pexe",
-  "version": "9.0.0",
+  "version": "10.0.0",
   "description": "PNaCl port of the strong chess engine Stockfish with multi-variant support",
   "keywords": ["chess", "stockfish", "emscripten", "lichess", "pnacl"],
   "author": "Niklas Fiekas <niklas.fiekas@backscattering.de>",
