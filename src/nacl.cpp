@@ -27,7 +27,6 @@ void initialize() {
   Bitbases::init();
   Search::init();
   Pawns::init();
-  TT.resize(Options["Hash"]);
   Threads.set(Options["Threads"]);
   Search::clear(); // After threads are up
 }
