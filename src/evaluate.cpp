@@ -558,9 +558,9 @@ namespace {
   };
 
   // Assorted bonuses and penalties
-  constexpr Score BishopPawns        = S(  3,  8);
+  constexpr Score BishopPawns        = S(  3,  7);
   constexpr Score CloseEnemies[VARIANT_NB] = {
-    S(  7,  0),
+    S(  8,  0),
 #ifdef ANTI
     S( 0,  0),
 #endif
@@ -596,23 +596,22 @@ namespace {
 #endif
   };
   constexpr Score CorneredBishop     = S( 50, 50);
-  constexpr Score Hanging            = S( 62, 34);
-  constexpr Score KingProtector      = S(  6,  7);
-  constexpr Score KnightOnQueen      = S( 20, 12);
-  constexpr Score LongDiagonalBishop = S( 44,  0);
-  constexpr Score MinorBehindPawn    = S( 16,  0);
-  constexpr Score Overload           = S( 12,  6);
-  constexpr Score PawnlessFlank      = S( 18, 94);
-  constexpr Score RestrictedPiece    = S(  7,  6);
-  constexpr Score RookOnPawn         = S( 10, 28);
-  constexpr Score SliderOnQueen      = S( 49, 21);
-  constexpr Score ThreatByKing       = S( 21, 84);
-  constexpr Score ThreatByPawnPush   = S( 48, 42);
-  constexpr Score ThreatByRank       = S( 14,  3);
-  constexpr Score ThreatBySafePawn   = S(169, 99);
-  constexpr Score TrappedRook        = S( 98,  5);
-  constexpr Score WeakQueen          = S( 51, 10);
-  constexpr Score WeakUnopposedPawn  = S( 14, 20);
+  constexpr Score Hanging            = S( 69, 36);
+  constexpr Score KingProtector      = S(  7,  8);
+  constexpr Score KnightOnQueen      = S( 16, 12);
+  constexpr Score LongDiagonalBishop = S( 45,  0);
+  constexpr Score MinorBehindPawn    = S( 18,  3);
+  constexpr Score PawnlessFlank      = S( 17, 95);
+  constexpr Score RestrictedPiece    = S(  7,  7);
+  constexpr Score RookOnPawn         = S( 10, 32);
+  constexpr Score SliderOnQueen      = S( 59, 18);
+  constexpr Score ThreatByKing       = S( 24, 89);
+  constexpr Score ThreatByPawnPush   = S( 48, 39);
+  constexpr Score ThreatByRank       = S( 13,  0);
+  constexpr Score ThreatBySafePawn   = S(173, 94);
+  constexpr Score TrappedRook        = S( 47,  4);
+  constexpr Score WeakQueen          = S( 49, 15);
+  constexpr Score WeakUnopposedPawn  = S( 12, 23);
 
 #undef S
 
@@ -656,7 +655,7 @@ namespace {
     // kingRing[color] are the squares adjacent to the king, plus (only for a
     // king on its first rank) the squares two ranks in front. For instance,
     // if black's king is on g8, kingRing[BLACK] is f8, h8, f7, g7, h7, f6, g6
-    // and h6. It is set to 0 when king safety evaluation is skipped.
+    // and h6.
     Bitboard kingRing[COLOR_NB];
 
     // kingAttackersCount[color] is the number of pieces of the given color
@@ -741,35 +740,34 @@ namespace {
     attackedBy[Us][ALL_PIECES] = attackedBy[Us][KING] | attackedBy[Us][PAWN];
     attackedBy2[Us]            = attackedBy[Us][KING] & attackedBy[Us][PAWN];
 
-    kingRing[Us] = kingAttackersCount[Them] = 0;
-
-    // Init our king safety tables only if we are going to use them
-    if ((
+    // Init our king safety tables
+    kingRing[Us] = attackedBy[Us][KING];
 #ifdef ANTI
-        !pos.is_anti() &&
+    if (pos.is_anti()) {} else
 #endif
 #ifdef EXTINCTION
-        !pos.is_extinction() &&
+    if (pos.is_extinction()) {} else
 #endif
 #ifdef HORDE
-        !(pos.is_horde() && pos.is_horde_color(Us)) &&
+    if (pos.is_horde() && pos.is_horde_color(Us)) {} else
 #endif
-        (pos.non_pawn_material(Them) >= RookValueMg + KnightValueMg))
-    )
+#ifdef PLACEMENT
+    if (pos.is_placement() && pos.count_in_hand<KING>(Us)) {} else
+#endif
     {
-        kingRing[Us] = attackedBy[Us][KING];
-        if (relative_rank(Us, pos.square<KING>(Us)) == RANK_1)
-            kingRing[Us] |= shift<Up>(kingRing[Us]);
+    if (relative_rank(Us, pos.square<KING>(Us)) == RANK_1)
+        kingRing[Us] |= shift<Up>(kingRing[Us]);
 
-        if (file_of(pos.square<KING>(Us)) == FILE_H)
-            kingRing[Us] |= shift<WEST>(kingRing[Us]);
+    if (file_of(pos.square<KING>(Us)) == FILE_H)
+        kingRing[Us] |= shift<WEST>(kingRing[Us]);
 
-        else if (file_of(pos.square<KING>(Us)) == FILE_A)
-            kingRing[Us] |= shift<EAST>(kingRing[Us]);
-
-        kingAttackersCount[Them] = popcount(kingRing[Us] & pe->pawn_attacks(Them));
-        kingAttacksCount[Them] = kingAttackersWeight[Them] = 0;
+    else if (file_of(pos.square<KING>(Us)) == FILE_A)
+        kingRing[Us] |= shift<EAST>(kingRing[Us]);
     }
+
+    kingAttackersCount[Them] = popcount(kingRing[Us] & pe->pawn_attacks(Them));
+    kingRing[Us] &= ~double_pawn_attacks_bb<Us>(pos.pieces(Us, PAWN));
+    kingAttacksCount[Them] = kingAttackersWeight[Them] = 0;
   }
 
 
@@ -891,7 +889,7 @@ namespace {
             {
                 File kf = file_of(pos.square<KING>(Us));
                 if ((kf < FILE_E) == (file_of(s) < kf))
-                    score -= (TrappedRook - make_score(mob * 22, 0)) * (1 + !pos.can_castle(Us));
+                    score -= TrappedRook * (1 + !pos.castling_rights(Us));
             }
         }
 
@@ -954,109 +952,109 @@ namespace {
     int tropism = popcount(b1) + popcount(b2);
 
     // Main king safety evaluation
-    if (kingAttackersCount[Them] > 1 - pos.count<QUEEN>(Them))
-    {
-        int kingDanger = 0;
-        unsafeChecks = 0;
+    int kingDanger = 0;
+    unsafeChecks = 0;
 
-        // Attacked squares defended at most once by our queen or king
+    // Attacked squares defended at most once by our queen or king
 #ifdef ATOMIC
-        if (pos.is_atomic())
-            weak =  (attackedBy[Them][ALL_PIECES] | (pos.pieces(Them) ^ pos.pieces(Them, KING)))
-                  & (~attackedBy[Us][ALL_PIECES] | attackedBy[Us][KING] | (attackedBy[Us][QUEEN] & ~attackedBy2[Us]));
-        else
+    if (pos.is_atomic())
+        weak =  (attackedBy[Them][ALL_PIECES] | (pos.pieces(Them) ^ pos.pieces(Them, KING)))
+              & (~attackedBy[Us][ALL_PIECES] | attackedBy[Us][KING] | (attackedBy[Us][QUEEN] & ~attackedBy2[Us]));
+    else
 #endif
-        weak =  attackedBy[Them][ALL_PIECES]
-              & ~attackedBy2[Us]
-              & (~attackedBy[Us][ALL_PIECES] | attackedBy[Us][KING] | attackedBy[Us][QUEEN]);
+    weak =  attackedBy[Them][ALL_PIECES]
+          & ~attackedBy2[Us]
+          & (~attackedBy[Us][ALL_PIECES] | attackedBy[Us][KING] | attackedBy[Us][QUEEN]);
 
-        Bitboard h = 0;
+    Bitboard h = 0;
 #ifdef CRAZYHOUSE
-        if (pos.is_house())
-            h = pos.count_in_hand<QUEEN>(Them) ? weak & ~pos.pieces() : 0;
+    if (pos.is_house())
+        h = pos.count_in_hand<QUEEN>(Them) ? weak & ~pos.pieces() : 0;
 #endif
 
-        // Analyse the safe enemy's checks which are possible on next move
-        safe  = ~pos.pieces(Them);
-        safe &= ~attackedBy[Us][ALL_PIECES] | (weak & attackedBy2[Them]);
+    // Analyse the safe enemy's checks which are possible on next move
+    safe  = ~pos.pieces(Them);
+    safe &= ~attackedBy[Us][ALL_PIECES] | (weak & attackedBy2[Them]);
 #ifdef ATOMIC
-        if (pos.is_atomic())
-            safe |= attackedBy[Us][KING];
+    if (pos.is_atomic())
+        safe |= attackedBy[Us][KING];
 #endif
 
-        // Defended by our queen or king only
-        Bitboard dqko = ~attackedBy2[Us] & (attackedBy[Us][QUEEN] | attackedBy[Us][KING]);
-        Bitboard dropSafe = (safe | (attackedBy[Them][ALL_PIECES] & dqko)) & ~pos.pieces(Us);
+    b1 = attacks_bb<ROOK  >(ksq, pos.pieces() ^ pos.pieces(Us, QUEEN));
+    b2 = attacks_bb<BISHOP>(ksq, pos.pieces() ^ pos.pieces(Us, QUEEN));
 
-        b1 = attacks_bb<ROOK  >(ksq, pos.pieces() ^ pos.pieces(Us, QUEEN));
-        b2 = attacks_bb<BISHOP>(ksq, pos.pieces() ^ pos.pieces(Us, QUEEN));
+    Bitboard dqko = ~attackedBy2[Us] & (attackedBy[Us][QUEEN] | attackedBy[Us][KING]);
+    Bitboard dropSafe = (safe | (attackedBy[Them][ALL_PIECES] & dqko)) & ~pos.pieces(Us);
 
-        // Enemy queen safe checks
-        if ((b1 | b2) & (h | attackedBy[Them][QUEEN]) & safe & ~attackedBy[Us][QUEEN])
-            kingDanger += QueenSafeCheck;
+    // Enemy queen safe checks
+    if ((b1 | b2) & (h | attackedBy[Them][QUEEN]) & safe & ~attackedBy[Us][QUEEN])
+        kingDanger += QueenSafeCheck;
 
 #ifdef THREECHECK
-        if (pos.is_three_check() && pos.checks_given(Them))
-            safe = ~pos.pieces(Them);
+    if (pos.is_three_check() && pos.checks_given(Them))
+        safe = ~pos.pieces(Them);
 #endif
 
-        // Enemy rooks checks
+    b1 &= attackedBy[Them][ROOK];
+    b2 &= attackedBy[Them][BISHOP];
+
 #ifdef CRAZYHOUSE
-        h = pos.is_house() && pos.count_in_hand<ROOK>(Them) ? ~pos.pieces() : 0;
+    h = pos.is_house() && pos.count_in_hand<ROOK>(Them) ? ~pos.pieces() : 0;
 #endif
-        if (b1 & ((attackedBy[Them][ROOK] & safe) | (h & dropSafe)))
-            kingDanger += RookSafeCheck;
+    // Enemy rooks checks
+    if (b1 & ((attackedBy[Them][ROOK] & safe) | (h & dropSafe)))
+        kingDanger += RookSafeCheck;
+    else
+        unsafeChecks |= b1 & (attackedBy[Them][ROOK] | h);
+
+    // Enemy bishops checks
+#ifdef CRAZYHOUSE
+    h = pos.is_house() && pos.count_in_hand<BISHOP>(Them) ? ~pos.pieces() : 0;
+#endif
+    if (b2 & ((attackedBy[Them][BISHOP] & safe) | (h & dropSafe)))
+        kingDanger += BishopSafeCheck;
+    else
+        unsafeChecks |= b2 & (attackedBy[Them][BISHOP] | h);
+
+    // Enemy knights checks
+    b = pos.attacks_from<KNIGHT>(ksq) & attackedBy[Them][KNIGHT];
+#ifdef CRAZYHOUSE
+    h = pos.is_house() && pos.count_in_hand<KNIGHT>(Them) ? ~pos.pieces() : 0;
+#endif
+    if (b & ((attackedBy[Them][KNIGHT] & safe) | (h & dropSafe)))
+        kingDanger += KnightSafeCheck;
+    else
+        unsafeChecks |= b & (attackedBy[Them][KNIGHT] | h);
+
+#ifdef CRAZYHOUSE
+    // Enemy pawn checks
+    if (pos.is_house())
+    {
+        constexpr Direction Down = (Us == WHITE ? SOUTH : NORTH);
+        b = pos.attacks_from<PAWN>(ksq, Us);
+        h = pos.count_in_hand<PAWN>(Them) ? ~pos.pieces() : 0;
+        Bitboard pawn_moves = (attackedBy[Them][PAWN] & pos.pieces(Us)) | (shift<Down>(pos.pieces(Them, PAWN)) & ~pos.pieces());
+        if (b & ((pawn_moves & safe) | (h & dropSafe)))
+            kingDanger += PawnSafeCheck;
         else
-            unsafeChecks |= b1 & (attackedBy[Them][ROOK] | h);
-
-        // Enemy bishops checks
-#ifdef CRAZYHOUSE
-        h = pos.is_house() && pos.count_in_hand<BISHOP>(Them) ? ~pos.pieces() : 0;
-#endif
-        if (b2 & ((attackedBy[Them][BISHOP] & safe) | (h & dropSafe)))
-            kingDanger += BishopSafeCheck;
-        else
-            unsafeChecks |= b2 & (attackedBy[Them][BISHOP] | h);
-
-        // Enemy knights checks
-        b = pos.attacks_from<KNIGHT>(ksq);
-#ifdef CRAZYHOUSE
-        h = pos.is_house() && pos.count_in_hand<KNIGHT>(Them) ? ~pos.pieces() : 0;
-#endif
-        if (b & ((attackedBy[Them][KNIGHT] & safe) | (h & dropSafe)))
-            kingDanger += KnightSafeCheck;
-        else
-            unsafeChecks |= b & (attackedBy[Them][KNIGHT] | h);
-
-#ifdef CRAZYHOUSE
-        // Enemy pawn checks
-        if (pos.is_house())
-        {
-            constexpr Direction Down = (Us == WHITE ? SOUTH : NORTH);
-            b = pos.attacks_from<PAWN>(ksq, Us);
-            h = pos.count_in_hand<PAWN>(Them) ? ~pos.pieces() : 0;
-            Bitboard pawn_moves = (attackedBy[Them][PAWN] & pos.pieces(Us)) | (shift<Down>(pos.pieces(Them, PAWN)) & ~pos.pieces());
-            if (b & ((pawn_moves & safe) | (h & dropSafe)))
-                kingDanger += PawnSafeCheck;
-            else
-                unsafeChecks |=  b & (pawn_moves | h);
-        }
+            unsafeChecks |=  b & (pawn_moves | h);
+    }
 #endif
 
-        // Unsafe or occupied checking squares will also be considered, as long as
-        // the square is in the attacker's mobility area.
-        unsafeChecks &= mobilityArea[Them];
+    // Unsafe or occupied checking squares will also be considered, as long as
+    // the square is in the attacker's mobility area.
+    unsafeChecks &= mobilityArea[Them];
 
-        const auto KDP = KingDangerParams[pos.variant()];
-        kingDanger +=        kingAttackersCount[Them] * kingAttackersWeight[Them]
-                     + KDP[0] * kingAttacksCount[Them]
-                     + KDP[1] * popcount(kingRing[Us] & weak)
-                     + KDP[2] * popcount(pos.blockers_for_king(Us) | unsafeChecks)
-                     + KDP[3] * tropism * tropism / 4
-                     + KDP[4] * !pos.count<QUEEN>(Them)
-                     + KDP[5] * mg_value(score) / 8
-                     +          mg_value(mobility[Them] - mobility[Us])
-                     + KDP[6];
+    const auto KDP = KingDangerParams[pos.variant()];
+    kingDanger +=        kingAttackersCount[Them] * kingAttackersWeight[Them]
+                 + KDP[0] * kingAttacksCount[Them]
+                 + KDP[1] * popcount(kingRing[Us] & weak)
+                 + KDP[2] * popcount(pos.blockers_for_king(Us) | unsafeChecks)
+                 + KDP[3] * tropism * tropism / 4
+                 + KDP[4] * !pos.count<QUEEN>(Them)
+                 + KDP[5] * mg_value(score) / 8
+                 +          mg_value(mobility[Them] - mobility[Us])
+                 + KDP[6];
 #ifdef CRAZYHOUSE
         if (pos.is_house())
         {
@@ -1071,36 +1069,35 @@ namespace {
 #endif
 
 #ifdef ATOMIC
-        if (pos.is_atomic())
-        {
-            kingDanger += IndirectKingAttack * popcount(pos.attacks_from<KING>(pos.square<KING>(Us)) & pos.pieces(Us) & attackedBy[Them][ALL_PIECES]);
-            score -= make_score(100, 100) * popcount(attackedBy[Us][KING] & pos.pieces());
-        }
+    if (pos.is_atomic())
+    {
+        kingDanger += IndirectKingAttack * popcount(pos.attacks_from<KING>(pos.square<KING>(Us)) & pos.pieces(Us) & attackedBy[Them][ALL_PIECES]);
+        score -= make_score(100, 100) * popcount(attackedBy[Us][KING] & pos.pieces());
+    }
 #endif
-        // Transform the kingDanger units into a Score, and subtract it from the evaluation
-        if (kingDanger > 0)
-        {
+    // Transform the kingDanger units into a Score, and subtract it from the evaluation
+    if (kingDanger > 0)
+    {
 #ifdef THREECHECK
-            if (pos.is_three_check())
-                kingDanger = ThreeCheckKSFactors[pos.checks_given(Them)] * kingDanger / 256;
+        if (pos.is_three_check())
+            kingDanger = ThreeCheckKSFactors[pos.checks_given(Them)] * kingDanger / 256;
 #endif
-            int v = kingDanger * kingDanger / 4096;
+        int v = kingDanger * kingDanger / 4096;
 #ifdef ATOMIC
-            if (pos.is_atomic() && v > QueenValueMg)
-                v = QueenValueMg;
+        if (pos.is_atomic() && v > QueenValueMg)
+            v = QueenValueMg;
 #endif
 #ifdef CRAZYHOUSE
-            if (pos.is_house() && Us == pos.side_to_move())
-                v -= v / 10;
-            if (pos.is_house() && v > QueenValueMg)
-                v = QueenValueMg;
+        if (pos.is_house() && Us == pos.side_to_move())
+            v -= v / 10;
+        if (pos.is_house() && v > QueenValueMg)
+            v = QueenValueMg;
 #endif
 #ifdef THREECHECK
-            if (pos.is_three_check() && v > QueenValueMg)
-                v = QueenValueMg;
+        if (pos.is_three_check() && v > QueenValueMg)
+            v = QueenValueMg;
 #endif
-            score -= make_score(v, kingDanger / 16 + KDP[7] * v / 256);
-        }
+        score -= make_score(v, kingDanger / 16 + KDP[7] * v / 256);
     }
 
     // Penalty when our king is on a pawnless flank
@@ -1233,7 +1230,7 @@ namespace {
     {
 
     // Non-pawn enemies
-    nonPawnEnemies = pos.pieces(Them) ^ pos.pieces(Them, PAWN);
+    nonPawnEnemies = pos.pieces(Them) & ~pos.pieces(PAWN);
 
     // Squares strongly protected by the enemy, either because they defend the
     // square with a pawn, or because they defend the square twice and we don't.
@@ -1273,16 +1270,14 @@ namespace {
         if (weak & attackedBy[Us][KING])
             score += ThreatByKing;
 
-        score += Hanging * popcount(weak & ~attackedBy[Them][ALL_PIECES]);
-
-        b = weak & nonPawnEnemies & attackedBy[Them][ALL_PIECES];
-        score += Overload * popcount(b);
+        b =  ~attackedBy[Them][ALL_PIECES]
+           | (nonPawnEnemies & attackedBy2[Us]);
+        score += Hanging * popcount(weak & b);
     }
 
     // Bonus for restricting their piece moves
     restricted =   attackedBy[Them][ALL_PIECES]
-                & ~attackedBy[Them][PAWN]
-                & ~attackedBy2[Them]
+                & ~stronglyProtected
                 &  attackedBy[Us][ALL_PIECES];
     score += RestrictedPiece * popcount(restricted);
 
@@ -1463,7 +1458,8 @@ namespace {
     if (pos.non_pawn_material() < SpaceThreshold[pos.variant()])
         return SCORE_ZERO;
 
-    constexpr Color Them = (Us == WHITE ? BLACK : WHITE);
+    constexpr Color Them     = (Us == WHITE ? BLACK : WHITE);
+    constexpr Direction Down = (Us == WHITE ? SOUTH : NORTH);
     constexpr Bitboard SpaceMask =
       Us == WHITE ? CenterFiles & (Rank2BB | Rank3BB | Rank4BB)
                   : CenterFiles & (Rank7BB | Rank6BB | Rank5BB);
@@ -1475,11 +1471,12 @@ namespace {
 
     // Find all squares which are at most three squares behind some friendly pawn
     Bitboard behind = pos.pieces(Us, PAWN);
-    behind |= (Us == WHITE ? behind >>  8 : behind <<  8);
-    behind |= (Us == WHITE ? behind >> 16 : behind << 16);
+    behind |= shift<Down>(behind);
+    behind |= shift<Down>(shift<Down>(behind));
 
     int bonus = popcount(safe) + popcount(behind & safe);
-    int weight = pos.count<ALL_PIECES>(Us) - 2 * pe->open_files();
+    int weight =  pos.count<ALL_PIECES>(Us)
+                - 2 * popcount(pe->semiopenFiles[WHITE] & pe->semiopenFiles[BLACK]);
 
     Score score = make_score(bonus * weight * weight / 16, 0);
 #ifdef KOTH
@@ -1593,12 +1590,12 @@ namespace {
                             && (pos.pieces(PAWN) & KingSide);
 
     // Compute the initiative bonus for the attacking side
-    int complexity =   8 * pe->pawn_asymmetry()
-                    + 12 * pos.count<PAWN>()
-                    + 12 * outflanking
-                    + 16 * pawnsOnBothFlanks
-                    + 48 * !pos.non_pawn_material()
-                    -118 ;
+    int complexity =   9 * pe->pawn_asymmetry()
+                    + 11 * pos.count<PAWN>()
+                    +  9 * outflanking
+                    + 18 * pawnsOnBothFlanks
+                    + 49 * !pos.non_pawn_material()
+                    -121 ;
 
     // Now apply the bonus: note that we find the attacking side by extracting
     // the sign of the endgame value, and that we carefully cap the bonus so

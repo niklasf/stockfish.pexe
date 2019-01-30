@@ -200,7 +200,7 @@ void Position::init() {
                   {
                       std::swap(cuckoo[i], key);
                       std::swap(cuckooMove[i], move);
-                      if (move == 0)   // Arrived at empty slot ?
+                      if (move == MOVE_NONE) // Arrived at empty slot?
                           break;
                       i = (i == H1(key)) ? H2(key) : H1(key); // Push victim to alternative slot
                   }
@@ -471,7 +471,7 @@ void Position::set_castling_right(Color c, Square kfrom, Square rfrom) {
   castlingRightsMask[kfrom] |= cr;
   castlingRightsMask[rfrom] |= cr;
 #if defined(ANTI) || defined(EXTINCTION) || defined(TWOKINGS)
-  castlingKingSquare[cr] = kfrom;
+  castlingKingSquare[c] = kfrom;
 #endif
   castlingRookSquare[cr] = rfrom;
 
@@ -776,18 +776,18 @@ const string Position::fen() const {
   ss << (sideToMove == WHITE ? " w " : " b ");
 
   if (can_castle(WHITE_OO))
-      ss << (chess960 ? char('A' + file_of(castling_rook_square(WHITE |  KING_SIDE))) : 'K');
+      ss << (chess960 ? char('A' + file_of(castling_rook_square(WHITE_OO ))) : 'K');
 
   if (can_castle(WHITE_OOO))
-      ss << (chess960 ? char('A' + file_of(castling_rook_square(WHITE | QUEEN_SIDE))) : 'Q');
+      ss << (chess960 ? char('A' + file_of(castling_rook_square(WHITE_OOO))) : 'Q');
 
   if (can_castle(BLACK_OO))
-      ss << (chess960 ? char('a' + file_of(castling_rook_square(BLACK |  KING_SIDE))) : 'k');
+      ss << (chess960 ? char('a' + file_of(castling_rook_square(BLACK_OO ))) : 'k');
 
   if (can_castle(BLACK_OOO))
-      ss << (chess960 ? char('a' + file_of(castling_rook_square(BLACK | QUEEN_SIDE))) : 'q');
+      ss << (chess960 ? char('a' + file_of(castling_rook_square(BLACK_OOO))) : 'q');
 
-  if (!can_castle(WHITE) && !can_castle(BLACK))
+  if (!can_castle(ANY_CASTLING))
       ss << '-';
 
   ss << (ep_square() == SQ_NONE ? " - " : " " + UCI::square(ep_square()) + " ");
@@ -814,14 +814,15 @@ Bitboard Position::slider_blockers(Bitboard sliders, Square s, Bitboard& pinners
   Bitboard blockers = 0;
   pinners = 0;
 
-  // Snipers are sliders that attack 's' when a piece is removed
+  // Snipers are sliders that attack 's' when a piece and other snipers are removed
   Bitboard snipers = (  (PseudoAttacks[  ROOK][s] & pieces(QUEEN, ROOK))
                       | (PseudoAttacks[BISHOP][s] & pieces(QUEEN, BISHOP))) & sliders;
+  Bitboard occupancy = pieces() & ~snipers;
 
   while (snipers)
   {
     Square sniperSq = pop_lsb(&snipers);
-    Bitboard b = between_bb(s, sniperSq) & pieces();
+    Bitboard b = between_bb(s, sniperSq) & occupancy;
 
     if (b && !more_than_one(b))
     {
@@ -876,6 +877,7 @@ bool Position::legal(Move m) const {
 
   Color us = sideToMove;
   Square from = from_sq(m);
+  Square to = to_sq(m);
 
   assert(color_of(moved_piece(m)) == us);
 #ifdef ANTI
@@ -954,7 +956,6 @@ bool Position::legal(Move m) const {
   if (is_atomic())
   {
       Square ksq = square<KING>(us);
-      Square to = to_sq(m);
 
       assert(!capture(m) || !(attacks_from<KING>(to) & ksq));
       if (type_of(piece_on(from)) != KING)
@@ -989,7 +990,6 @@ bool Position::legal(Move m) const {
   if (type_of(m) == ENPASSANT)
   {
       Square ksq = square<KING>(us);
-      Square to = to_sq(m);
       Square capsq = to - pawn_push(us);
       Bitboard occupied = (pieces() ^ from ^ capsq) | to;
 
@@ -1012,30 +1012,62 @@ bool Position::legal(Move m) const {
       return pieceCountInHand[us][type_of(moved_piece(m))] && empty(to_sq(m));
 #endif
 
-#ifdef ATOMIC
-  if (is_atomic() && type_of(piece_on(from)) == KING && type_of(m) != CASTLING)
+  // Castling moves generation does not check if the castling path is clear of
+  // enemy attacks, it is delayed at a later time: now!
+  if (type_of(m) == CASTLING)
   {
-      Square to = to_sq(m);
-      if (kings_adjacent() && !(attacks_from<KING>(square<KING>(~us)) & to))
+      // After castling, the rook and king final positions are the same in
+      // Chess960 as they would be in standard chess.
+      to = relative_square(us, to > from ? SQ_G1 : SQ_C1);
+      Direction step = to > from ? WEST : EAST;
+
+      for (Square s = to; s != from; s += step)
+#ifdef ATOMIC
+          if (is_atomic())
+          {
+              // Atomic king cannot castle through check or discovered check
+              if (   !(attacks_from<KING>(square<KING>(~us)) & s)
+                  &&  (attackers_to(s, pieces() ^ from) & pieces(~us)))
+                  return false;
+          }
+          else
+#endif
+          if (attackers_to(s) & pieces(~us))
+              return false;
+#ifdef TWOKINGS
+      if (is_two_kings())
+      {
+          Square ksq = royal_king(us, pieces(us, KING) ^ from ^ to);
+          if (attackers_to(ksq) & pieces(~us))
+              return false;
+      }
+#endif
+
+      // In case of Chess960, verify that when moving the castling rook we do
+      // not discover some hidden checker.
+      // For instance an enemy queen in SQ_A1 when castling rook is in SQ_B1.
+      return   !chess960
+#ifdef ATOMIC
+            ||  (is_atomic() && (attacks_from<KING>(square<KING>(~us)) & to))
+#endif
+            || !(attacks_bb<ROOK>(to, pieces() ^ to_sq(m)) & pieces(~us, ROOK, QUEEN));
+  }
+
+  // If the moving piece is a king, check whether the destination square is
+  // attacked by the opponent.
+  if (type_of(piece_on(from)) == KING)
+  {
+#ifdef ATOMIC
+      if (is_atomic() && kings_adjacent() && !(attacks_from<KING>(square<KING>(~us)) & to))
       {
           if (attackers_to(to) & pieces(~us, KNIGHT, PAWN))
               return false;
           return !(slider_attackers_to(to, (pieces() ^ from) | to) & pieces(~us));
       }
-  }
 #endif
-
-  // If the moving piece is a king, check whether the destination
-  // square is attacked by the opponent. Castling moves are checked
-  // for legality during move generation.
-  if (type_of(piece_on(from)) == KING)
-  {
 #ifdef TWOKINGS
       if (is_two_kings())
       {
-          Square to = to_sq(m);
-          if (type_of(m) == CASTLING)
-              to = make_square(to >= from ? FILE_G : FILE_C, rank_of(from));
           Square ksq = royal_king(us, pieces(us, KING) ^ from ^ to);
           return !(attackers_to(ksq, (pieces() ^ from) | to) & (pieces(~us) - to));
       }
@@ -1043,15 +1075,15 @@ bool Position::legal(Move m) const {
 #ifdef GRID
       // We have to take into account here that pieces can give check by moving away from the king
       if (is_grid())
-          return type_of(m) == CASTLING || !(attackers_to(to_sq(m), pieces() ^ from) & pieces(~us));
+          return !(attackers_to(to_sq(m), pieces() ^ from) & pieces(~us));
 #endif
-      return type_of(m) == CASTLING || !(attackers_to(to_sq(m)) & pieces(~us));
+      return !(attackers_to(to) & pieces(~us));
   }
 
   // A non-king move is legal if and only if it is not pinned or it
   // is moving along the ray towards or away from the king.
   return   !(blockers_for_king(us) & from)
-        ||  aligned(from, to_sq(m), square<KING>(us));
+        ||  aligned(from, to, square<KING>(us));
 }
 
 
@@ -2130,8 +2162,8 @@ bool Position::see_ge(Move m, Value threshold) const {
       stmAttackers = attackers & pieces(stm);
 
       // Don't allow pinned pieces to attack (except the king) as long as
-      // all pinners are on their original square.
-      if (!(st->pinners[~stm] & ~occupied))
+      // any pinners are on their original square.
+      if (st->pinners[~stm] & occupied)
           stmAttackers &= ~st->blockersForKing[stm];
 #ifdef RACE
       // Exclude checks in racing kings
@@ -2624,9 +2656,9 @@ bool Position::pos_is_ok() const {
 
 #if defined(ANTI) || defined(EXTINCTION) || defined(TWOKINGS)
           if (   piece_on(castlingRookSquare[c | s]) != make_piece(c, ROOK)
-              || piece_on(castlingKingSquare[c | s]) != make_piece(c, KING)
+              || piece_on(castlingKingSquare[c]) != make_piece(c, KING)
               || castlingRightsMask[castlingRookSquare[c | s]] != (c | s)
-              || (castlingRightsMask[castlingKingSquare[c | s]] & (c | s)) != (c | s))
+              || (castlingRightsMask[castlingKingSquare[c]] & (c | s)) != (c | s))
 #else
           if (   piece_on(castlingRookSquare[c | s]) != make_piece(c, ROOK)
               || castlingRightsMask[castlingRookSquare[c | s]] != (c | s)
